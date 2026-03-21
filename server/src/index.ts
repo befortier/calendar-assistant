@@ -1,14 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-import path from 'path';
 import { config } from './config';
-import { EncryptionManager } from './crypto';
-import { DatabaseClient } from './db/client';
-import { runMigrations } from './db/migrate';
+import { Dependencies } from './dependencies';
 
-const encryption = new EncryptionManager(config.TOKEN_ENCRYPTION_KEY);
-const db = new DatabaseClient(encryption, path.join(__dirname, '../data/calendar.db'));
-runMigrations(db);
+const deps = new Dependencies(config);
+deps.migrations.migrate();
 
 const app = express();
 

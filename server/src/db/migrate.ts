@@ -1,33 +1,41 @@
 import fs from 'fs';
 import path from 'path';
-import { DatabaseClient } from './client';
+import { IDatabase } from './types';
 
-export function runMigrations(client: DatabaseClient): void {
-  client.db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (filename TEXT PRIMARY KEY)`);
+export class MigrationManager {
+  private readonly db: IDatabase;
 
-  const applied = new Set(
-    (client.db.prepare('SELECT filename FROM schema_migrations').all() as { filename: string }[])
-      .map(r => r.filename)
-  );
+  constructor(db: IDatabase) {
+    this.db = db;
+  }
 
-  const migrationsDir = path.join(__dirname, 'migrations');
-  const files = fs.readdirSync(migrationsDir)
-    .filter(f => f.endsWith('.sql'))
-    .filter(f => {
-      if (!/^\d{3}_\w+\.sql$/.test(f)) throw new Error(`Invalid migration filename: ${f}`);
-      return true;
-    })
-    .sort();
+  migrate(): void {
+    this.db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (filename TEXT PRIMARY KEY)`);
 
-  const applyMigration = client.db.transaction((file: string, sql: string) => {
-    client.db.exec(sql);
-    client.db.prepare('INSERT INTO schema_migrations (filename) VALUES (?)').run(file);
-  });
+    const applied = new Set(
+      (this.db.prepare('SELECT filename FROM schema_migrations').all() as { filename: string }[])
+        .map(r => r.filename)
+    );
 
-  for (const file of files) {
-    if (applied.has(file)) continue;
-    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
-    applyMigration(file, sql);
-    console.log(`Migration applied: ${file}`);
+    const migrationsDir = path.join(__dirname, 'migrations');
+    const files = fs.readdirSync(migrationsDir)
+      .filter(f => f.endsWith('.sql'))
+      .filter(f => {
+        if (!/^\d{3}_\w+\.sql$/.test(f)) throw new Error(`Invalid migration filename: ${f}`);
+        return true;
+      })
+      .sort();
+
+    const applyMigration = this.db.transaction((file: string, sql: string) => {
+      this.db.exec(sql);
+      this.db.prepare('INSERT INTO schema_migrations (filename) VALUES (?)').run(file);
+    });
+
+    for (const file of files) {
+      if (applied.has(file)) continue;
+      const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
+      applyMigration(file, sql);
+      console.log(`Migration applied: ${file}`);
+    }
   }
 }
