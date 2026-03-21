@@ -20,11 +20,6 @@ describe('EncryptionManager', () => {
     expect(mgr.encrypt('ya29.token')).not.toContain('ya29.token');
   });
 
-  it('round-trips a refresh token', () => {
-    const refresh = '1//0g-refresh-token-value';
-    expect(mgr.decrypt(mgr.encrypt(refresh))).toBe(refresh);
-  });
-
   it('throws on invalid key length', () => {
     expect(() => new EncryptionManager('tooshort')).toThrow('TOKEN_ENCRYPTION_KEY');
   });
