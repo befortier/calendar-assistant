@@ -1,0 +1,48 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: "--max-turns 5 --model claude-sonnet-4-6"
+          prompt: |
+            Review this pull request for a React + TypeScript + Tailwind web app (calendar assistant).
+
+            ## React Best Practices
+            - Avoid unnecessary re-renders: check for missing `useMemo`, `useCallback`, or `React.memo` on expensive operations
+            - Prefer server-side or hook-based data fetching over inline fetch calls in components
+            - Flag any components doing too much — single responsibility applies
+            - Check for missing or incorrect dependency arrays in `useEffect` / `useCallback` / `useMemo`
+            - Avoid prop drilling more than 2 levels deep — suggest context or Zustand instead
+
+            ## Composition Patterns
+            - Flag boolean prop proliferation (e.g. `isLarge`, `isPrimary`, `isDisabled` all on one component) — suggest variants or compound components
+            - Check that reusable components are generic enough to not leak domain logic
+            - Ensure context providers are scoped correctly and not placed too high in the tree
+
+            ## Web & Accessibility
+            - All interactive elements must have accessible labels (`aria-label`, `aria-labelledby`, or visible text)
+            - Images need `alt` text
+            - Color contrast must be sufficient — flag any hardcoded low-contrast Tailwind combos
+            - Tap/click targets should be at least 44x44px
+            - Forms must have associated `<label>` elements
+
+            ## General
+            - Flag any TypeScript `any` types that could be tightened
+            - Flag hardcoded strings that should be constants
+            - Note any obvious security issues (e.g. dangerouslySetInnerHTML, unsanitized input)
+
+            Be specific: quote the code, explain the issue, and suggest a fix. Skip praise — focus on actionable feedback only.
