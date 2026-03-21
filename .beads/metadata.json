@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_database": "recipe_finder",
+  "project_id": "bab4fb86-1730-4fc7-8870-159e5195becb"
+}
