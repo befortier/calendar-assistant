@@ -21,30 +21,30 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           claude_args: "--max-turns 5 --model claude-sonnet-4-6"
           prompt: |
-            Review this pull request for a React + TypeScript + Tailwind web app (calendar assistant).
+            Review the changes in this pull request for a React + TypeScript + Tailwind web app (calendar assistant).
+
+            Use the GitHub tools available to you to post a PR review with inline comments on specific lines where issues are found. Post a single review using the submit_pull_request_review tool with individual comments for each issue found.
 
             ## React Best Practices
             - Avoid unnecessary re-renders: check for missing `useMemo`, `useCallback`, or `React.memo` on expensive operations
-            - Prefer server-side or hook-based data fetching over inline fetch calls in components
+            - Prefer hook-based data fetching over inline fetch calls in components
             - Flag any components doing too much — single responsibility applies
             - Check for missing or incorrect dependency arrays in `useEffect` / `useCallback` / `useMemo`
             - Avoid prop drilling more than 2 levels deep — suggest context or Zustand instead
 
             ## Composition Patterns
-            - Flag boolean prop proliferation (e.g. `isLarge`, `isPrimary`, `isDisabled` all on one component) — suggest variants or compound components
+            - Flag boolean prop proliferation — suggest variants or compound components
             - Check that reusable components are generic enough to not leak domain logic
             - Ensure context providers are scoped correctly and not placed too high in the tree
 
             ## Web & Accessibility
-            - All interactive elements must have accessible labels (`aria-label`, `aria-labelledby`, or visible text)
+            - All interactive elements must have accessible labels
             - Images need `alt` text
-            - Color contrast must be sufficient — flag any hardcoded low-contrast Tailwind combos
-            - Tap/click targets should be at least 44x44px
             - Forms must have associated `<label>` elements
 
             ## General
             - Flag any TypeScript `any` types that could be tightened
             - Flag hardcoded strings that should be constants
-            - Note any obvious security issues (e.g. dangerouslySetInnerHTML, unsanitized input)
+            - Note any obvious security issues
 
-            Be specific: quote the code, explain the issue, and suggest a fix. Skip praise — focus on actionable feedback only.
+            Be specific: quote the code, explain the issue, and suggest a fix. If there is nothing to flag, post a comment on the PR saying "No issues found."
