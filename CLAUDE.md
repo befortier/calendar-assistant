@@ -10,6 +10,16 @@ Before creating any PR that includes `.tsx` or `.ts` UI files, invoke all three 
 
 This applies to any React code written in `app/src/`. Do not skip these even for small changes.
 
+## Merge Checklist (Required)
+
+Before merging any PR, run in order:
+
+1. `npm test --workspace=server` — all tests pass locally
+2. `gh pr checks <number>` — CI green
+3. `gh pr view <number> --comments` — review latest Claude feedback and address any valid findings
+
+Only propose merging after all three pass.
+
 ## PR Review Workflow (Required)
 
 Before merging any PR, check for Claude review comments:
