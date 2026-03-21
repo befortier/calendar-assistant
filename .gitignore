@@ -16,3 +16,9 @@ dist/
 # Claude Code local config
 .claude/*
 !.claude/settings.json
+
+# Beads credentials
+.beads/.beads-credential-key
+
+# Temp files
+temp/
