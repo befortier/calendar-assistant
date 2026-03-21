@@ -1,0 +1,17 @@
+{
+  "name": "calendar-assistant",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "app",
+    "server"
+  ],
+  "scripts": {
+    "dev:app": "npm run dev --workspace=app",
+    "dev:server": "npm run dev --workspace=server",
+    "dev": "concurrently \"npm run dev:app\" \"npm run dev:server\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
