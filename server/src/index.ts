@@ -1,8 +1,11 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import { runMigrations } from './db/migrate'
 
 dotenv.config()
+
+runMigrations()
 
 const app = express()
 const PORT = process.env.PORT ?? 3001
