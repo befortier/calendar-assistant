@@ -24,7 +24,7 @@ export class EncryptionManager {
   decrypt(ciphertext: string): string {
     const parts = ciphertext.split(':');
     if (parts.length !== 3) {
-      throw new Error('Invalid ciphertext format');
+      throw new Error(`Invalid ciphertext format: expected 3 colon-separated parts, got ${parts.length}`);
     }
     const [ivHex, tagHex, encryptedHex] = parts;
     const iv = Buffer.from(ivHex, 'hex');

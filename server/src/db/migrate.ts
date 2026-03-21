@@ -13,6 +13,10 @@ export function runMigrations(client: DatabaseClient): void {
   const migrationsDir = path.join(__dirname, 'migrations');
   const files = fs.readdirSync(migrationsDir)
     .filter(f => f.endsWith('.sql'))
+    .filter(f => {
+      if (!/^\d{3}_\w+\.sql$/.test(f)) throw new Error(`Invalid migration filename: ${f}`);
+      return true;
+    })
     .sort();
 
   for (const file of files) {
