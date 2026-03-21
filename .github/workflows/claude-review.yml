@@ -7,44 +7,48 @@ on:
 permissions:
   contents: read
   pull-requests: write
-  id-token: write
 
 jobs:
   claude-review:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          claude_args: "--max-turns 5 --model claude-sonnet-4-6"
+          claude_args: "--max-turns 10 --model claude-sonnet-4-6"
           prompt: |
-            Review the changes in this pull request for a React + TypeScript + Tailwind web app (calendar assistant).
+            You are reviewing a pull request for a React + TypeScript + Tailwind + Node/Express app.
 
-            Use the GitHub tools available to you to post a PR review with inline comments on specific lines where issues are found. Post a single review using the submit_pull_request_review tool with individual comments for each issue found.
+            Steps:
+            1. Run: gh pr diff ${{ github.event.pull_request.number }} to get the diff
+            2. Review the changed files against the criteria below
+            3. Run: gh pr comment ${{ github.event.pull_request.number }} --body "<your review>" to post your findings
+
+            If you find issues, post them with file name, line number, the problematic code quoted, explanation, and suggested fix.
+            If you find nothing, post: "✅ Code review complete — no issues found."
 
             ## React Best Practices
-            - Avoid unnecessary re-renders: check for missing `useMemo`, `useCallback`, or `React.memo` on expensive operations
-            - Prefer hook-based data fetching over inline fetch calls in components
-            - Flag any components doing too much — single responsibility applies
-            - Check for missing or incorrect dependency arrays in `useEffect` / `useCallback` / `useMemo`
-            - Avoid prop drilling more than 2 levels deep — suggest context or Zustand instead
+            - Unnecessary re-renders: missing `useMemo`, `useCallback`, `React.memo`
+            - Incorrect or missing `useEffect` dependency arrays
+            - Inline fetch calls in components instead of hooks
+            - Prop drilling more than 2 levels deep
 
             ## Composition Patterns
-            - Flag boolean prop proliferation — suggest variants or compound components
-            - Check that reusable components are generic enough to not leak domain logic
-            - Ensure context providers are scoped correctly and not placed too high in the tree
+            - Boolean prop proliferation — suggest variants or compound components
+            - Components leaking domain logic
+            - Context providers placed too high in the tree
 
             ## Web & Accessibility
-            - All interactive elements must have accessible labels
-            - Images need `alt` text
-            - Forms must have associated `<label>` elements
+            - Interactive elements missing accessible labels
+            - Images missing `alt` text
+            - Forms missing `<label>` elements
 
             ## General
-            - Flag any TypeScript `any` types that could be tightened
-            - Flag hardcoded strings that should be constants
-            - Note any obvious security issues
-
-            Be specific: quote the code, explain the issue, and suggest a fix. If there is nothing to flag, post a comment on the PR saying "No issues found."
+            - TypeScript `any` types that could be tightened
+            - Hardcoded strings that should be constants
+            - Security issues (dangerouslySetInnerHTML, unsanitized input, exposed secrets)
