@@ -12,3 +12,7 @@ dist/
 
 # Environment variables
 .env
+
+# Claude Code local config
+.claude/*
+!.claude/settings.json
