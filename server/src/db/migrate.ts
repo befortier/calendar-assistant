@@ -19,11 +19,15 @@ export function runMigrations(client: DatabaseClient): void {
     })
     .sort();
 
+  const applyMigration = client.db.transaction((file: string, sql: string) => {
+    client.db.exec(sql);
+    client.db.prepare('INSERT INTO schema_migrations (filename) VALUES (?)').run(file);
+  });
+
   for (const file of files) {
     if (applied.has(file)) continue;
     const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
-    client.db.exec(sql);
-    client.db.prepare('INSERT INTO schema_migrations (filename) VALUES (?)').run(file);
+    applyMigration(file, sql);
     console.log(`Migration applied: ${file}`);
   }
 }

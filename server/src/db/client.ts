@@ -4,6 +4,8 @@ import fs from 'fs';
 import { EncryptionManager } from '../crypto';
 
 export class DatabaseClient {
+  // Public for migrate.ts and test helpers. Prefer typed methods on this class
+  // over direct db access when adding service-layer code.
   readonly db: Database.Database;
   private readonly encryption: EncryptionManager;
 

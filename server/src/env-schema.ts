@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const envSchema = z.object({
-  TOKEN_ENCRYPTION_KEY: z.string().length(64, 'must be a 64-character hex string (32 bytes)'),
+  TOKEN_ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/, 'must be a 64-character hex string (32 bytes)'),
   JWT_SECRET:           z.string().min(1),
   GOOGLE_CLIENT_ID:     z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),

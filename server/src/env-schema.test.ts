@@ -28,6 +28,10 @@ describe('env schema', () => {
     expect(schema.safeParse({ ...VALID_ENV, TOKEN_ENCRYPTION_KEY: 'a'.repeat(65) }).success).toBe(false);
   });
 
+  it('rejects TOKEN_ENCRYPTION_KEY with non-hex characters', () => {
+    expect(schema.safeParse({ ...VALID_ENV, TOKEN_ENCRYPTION_KEY: 'z'.repeat(64) }).success).toBe(false);
+  });
+
   it('rejects missing required fields', () => {
     const { JWT_SECRET: _, ...withoutJwt } = VALID_ENV;
     expect(schema.safeParse(withoutJwt).success).toBe(false);
