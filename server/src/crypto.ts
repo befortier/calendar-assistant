@@ -28,6 +28,6 @@ export class EncryptionManager {
     const encrypted = Buffer.from(encryptedHex, 'hex');
     const decipher = crypto.createDecipheriv(ALGORITHM, this.key, iv);
     decipher.setAuthTag(tag);
-    return decipher.update(encrypted) + decipher.final('utf8');
+    return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
   }
 }

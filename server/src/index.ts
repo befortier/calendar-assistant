@@ -28,7 +28,7 @@ runMigrations(db);
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
-app.use(cors());
+app.use(cors({ origin: process.env.ALLOWED_ORIGIN ?? 'http://localhost:5173' }));
 app.use(express.json());
 
 app.get('/health', (_req, res) => {
@@ -38,5 +38,3 @@ app.get('/health', (_req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-export { db };
