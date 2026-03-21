@@ -20,14 +20,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          claude_args: "--max-turns 10 --model claude-sonnet-4-6"
-          settings: |
-            {
-              "permissions": {
-                "allow": ["Bash(gh:*)", "Read", "Glob", "Grep"],
-                "deny": []
-              }
-            }
+          claude_args: "--max-turns 10 --model claude-sonnet-4-6 --allowedTools Bash,Read,Glob,Grep"
           prompt: |
             You are reviewing a pull request for a React + TypeScript + Tailwind + Node/Express app.
 
