@@ -5,7 +5,7 @@ import { EncryptionManager } from '../crypto';
 
 export class DatabaseClient {
   readonly db: Database.Database;
-  readonly encryption: EncryptionManager;
+  private readonly encryption: EncryptionManager;
 
   constructor(encryption: EncryptionManager, dbPath: string) {
     this.encryption = encryption;

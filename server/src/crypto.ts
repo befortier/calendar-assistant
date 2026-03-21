@@ -22,7 +22,11 @@ export class EncryptionManager {
   }
 
   decrypt(ciphertext: string): string {
-    const [ivHex, tagHex, encryptedHex] = ciphertext.split(':');
+    const parts = ciphertext.split(':');
+    if (parts.length !== 3) {
+      throw new Error('Invalid ciphertext format');
+    }
+    const [ivHex, tagHex, encryptedHex] = parts;
     const iv = Buffer.from(ivHex, 'hex');
     const tag = Buffer.from(tagHex, 'hex');
     const encrypted = Buffer.from(encryptedHex, 'hex');
