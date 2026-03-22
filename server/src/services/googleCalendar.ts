@@ -8,8 +8,8 @@ export interface CalendarEvent {
   start: string;
   end: string;
   allDay: boolean;
-  location: string | undefined;
-  description: string | undefined;
+  location?: string;
+  description?: string;
 }
 
 export interface FreeSlot {
@@ -36,6 +36,7 @@ export class GoogleCalendarService {
 
   async getFreeSlots(start: Date, end: Date): Promise<FreeSlot[]> {
     const events = await this.getEvents(start, end);
+    // All-day events have no wall-clock start/end, so exclude them from slot computation
     const timedEvents = events.filter((e) => !e.allDay);
 
     // Merge overlapping intervals
