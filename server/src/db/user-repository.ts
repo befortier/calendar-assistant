@@ -33,23 +33,21 @@ export class UserRepository implements IUserRepository {
   }
 
   upsertUser(googleId: string, email: string, accessToken: string, refreshToken: string | null): string {
-    const existing = this.db.prepare('SELECT id FROM users WHERE google_id = ?').get(googleId) as { id: string } | undefined;
-
     const encryptedAccess = this.encryption.encrypt(accessToken);
     const encryptedRefresh = refreshToken !== null ? this.encryption.encrypt(refreshToken) : null;
+    const newId = crypto.randomUUID();
 
-    if (existing) {
-      this.db.prepare(
-        "UPDATE users SET encrypted_access_token = ?, encrypted_refresh_token = ?, updated_at = datetime('now') WHERE google_id = ?"
-      ).run(encryptedAccess, encryptedRefresh, googleId);
-      return existing.id;
-    }
+    const row = this.db.prepare(`
+      INSERT INTO users (id, google_id, email, encrypted_access_token, encrypted_refresh_token)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(google_id) DO UPDATE SET
+        encrypted_access_token = excluded.encrypted_access_token,
+        encrypted_refresh_token = excluded.encrypted_refresh_token,
+        updated_at = datetime('now')
+      RETURNING id
+    `).get(newId, googleId, email, encryptedAccess, encryptedRefresh) as { id: string };
 
-    const id = crypto.randomUUID();
-    this.db.prepare(
-      'INSERT INTO users (id, google_id, email, encrypted_access_token, encrypted_refresh_token) VALUES (?, ?, ?, ?, ?)'
-    ).run(id, googleId, email, encryptedAccess, encryptedRefresh);
-    return id;
+    return row.id;
   }
 
   getUserById(id: string): User | null {

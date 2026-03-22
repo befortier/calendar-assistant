@@ -6,8 +6,11 @@ export function signJwt(userId: string, secret: string): string {
 }
 
 export function verifyJwt(token: string, secret: string): string {
-  const payload = jwt.verify(token, secret) as { userId: string };
-  return payload.userId;
+  const payload = jwt.verify(token, secret);
+  if (typeof payload !== 'object' || payload === null || typeof (payload as Record<string, unknown>).userId !== 'string') {
+    throw new Error('Invalid token payload');
+  }
+  return (payload as { userId: string }).userId;
 }
 
 export function jwtMiddleware(secret: string) {
