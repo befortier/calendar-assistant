@@ -2,10 +2,19 @@ import { describe, it, expect, vi } from 'vitest';
 import { GoogleCalendarService } from './googleCalendar';
 import type { calendar_v3 } from 'googleapis';
 
-function makeCalendar(items: calendar_v3.Schema$Event[]): calendar_v3.Calendar {
+function makeCalendar(
+  items: calendar_v3.Schema$Event[],
+  overrides?: { freebusyQuery?: ReturnType<typeof vi.fn> },
+): calendar_v3.Calendar {
   return {
     events: {
-      list: vi.fn().mockResolvedValue({ data: { items } }),
+      list:   vi.fn().mockResolvedValue({ data: { items } }),
+      insert: vi.fn(),
+      patch:  vi.fn(),
+      delete: vi.fn(),
+    },
+    freebusy: {
+      query: overrides?.freebusyQuery ?? vi.fn(),
     },
   } as unknown as calendar_v3.Calendar;
 }
@@ -212,5 +221,239 @@ describe('GoogleCalendarService.getFreeSlots', () => {
 
     // All-day events don't occupy timed slots
     expect(slots).toEqual([{ start: START.toISOString(), end: END.toISOString() }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getFreeBusy
+// ---------------------------------------------------------------------------
+
+describe('GoogleCalendarService.getFreeBusy', () => {
+  it('returns busy blocks keyed by email', async () => {
+    const mockQuery = vi.fn().mockResolvedValue({
+      data: {
+        calendars: {
+          'a@x.com': { busy: [{ start: '2026-03-22T09:00:00Z', end: '2026-03-22T10:00:00Z' }] },
+          'b@x.com': { busy: [{ start: '2026-03-22T14:00:00Z', end: '2026-03-22T15:00:00Z' }] },
+        },
+      },
+    });
+    const service = new GoogleCalendarService(makeCalendar([], { freebusyQuery: mockQuery }));
+
+    const result = await service.getFreeBusy(['a@x.com', 'b@x.com'], START, END);
+
+    expect(result).toEqual({
+      'a@x.com': [{ start: '2026-03-22T09:00:00Z', end: '2026-03-22T10:00:00Z' }],
+      'b@x.com': [{ start: '2026-03-22T14:00:00Z', end: '2026-03-22T15:00:00Z' }],
+    });
+  });
+
+  it('returns empty array for an email with an empty busy array', async () => {
+    const mockQuery = vi.fn().mockResolvedValue({
+      data: { calendars: { 'a@x.com': { busy: [] } } },
+    });
+    const service = new GoogleCalendarService(makeCalendar([], { freebusyQuery: mockQuery }));
+
+    const result = await service.getFreeBusy(['a@x.com'], START, END);
+
+    expect(result).toEqual({ 'a@x.com': [] });
+  });
+
+  it('returns empty array when busy key is missing from response entry', async () => {
+    const mockQuery = vi.fn().mockResolvedValue({
+      data: { calendars: { 'a@x.com': {} } },
+    });
+    const service = new GoogleCalendarService(makeCalendar([], { freebusyQuery: mockQuery }));
+
+    const result = await service.getFreeBusy(['a@x.com'], START, END);
+
+    expect(result).toEqual({ 'a@x.com': [] });
+  });
+
+  it('returns empty array for an email absent from the response', async () => {
+    const mockQuery = vi.fn().mockResolvedValue({
+      data: { calendars: { 'a@x.com': { busy: [] } } },
+    });
+    const service = new GoogleCalendarService(makeCalendar([], { freebusyQuery: mockQuery }));
+
+    const result = await service.getFreeBusy(['a@x.com', 'missing@x.com'], START, END);
+
+    expect(result).toEqual({ 'a@x.com': [], 'missing@x.com': [] });
+  });
+
+  it('calls freebusy.query with correct timeMin, timeMax, and items', async () => {
+    const mockQuery = vi.fn().mockResolvedValue({ data: { calendars: {} } });
+    const service = new GoogleCalendarService(makeCalendar([], { freebusyQuery: mockQuery }));
+
+    await service.getFreeBusy(['a@x.com', 'b@x.com'], START, END);
+
+    expect(mockQuery).toHaveBeenCalledWith({
+      timeMin: START.toISOString(),
+      timeMax: END.toISOString(),
+      items: [{ id: 'a@x.com' }, { id: 'b@x.com' }],
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createEvent
+// ---------------------------------------------------------------------------
+
+const MOCK_EVENT_RESPONSE: calendar_v3.Schema$Event = {
+  id: 'new-evt',
+  summary: 'Team sync',
+  start: { dateTime: '2026-03-22T10:00:00Z' },
+  end:   { dateTime: '2026-03-22T10:30:00Z' },
+};
+
+describe('GoogleCalendarService.createEvent', () => {
+  it('returns a normalized CalendarEvent on success', async () => {
+    const mockInsert = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
+    const service = new GoogleCalendarService(
+      { events: { list: vi.fn(), insert: mockInsert, patch: vi.fn(), delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
+    );
+
+    const event = await service.createEvent({
+      title: 'Team sync',
+      start: '2026-03-22T10:00:00Z',
+      end:   '2026-03-22T10:30:00Z',
+    });
+
+    expect(event).toEqual({
+      id: 'new-evt',
+      title: 'Team sync',
+      start: '2026-03-22T10:00:00Z',
+      end:   '2026-03-22T10:30:00Z',
+      allDay: false,
+      location: undefined,
+      description: undefined,
+    });
+  });
+
+  it('includes attendees in requestBody when provided', async () => {
+    const mockInsert = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
+    const service = new GoogleCalendarService(
+      { events: { list: vi.fn(), insert: mockInsert, patch: vi.fn(), delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
+    );
+
+    await service.createEvent({
+      title: 'Team sync',
+      start: '2026-03-22T10:00:00Z',
+      end:   '2026-03-22T10:30:00Z',
+      attendees: ['a@x.com', 'b@x.com'],
+    });
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestBody: expect.objectContaining({
+          attendees: [{ email: 'a@x.com' }, { email: 'b@x.com' }],
+        }),
+      }),
+    );
+  });
+
+  it('omits attendees from requestBody when not provided', async () => {
+    const mockInsert = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
+    const service = new GoogleCalendarService(
+      { events: { list: vi.fn(), insert: mockInsert, patch: vi.fn(), delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
+    );
+
+    await service.createEvent({ title: 'Team sync', start: '2026-03-22T10:00:00Z', end: '2026-03-22T10:30:00Z' });
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestBody: expect.objectContaining({ attendees: undefined }),
+      }),
+    );
+  });
+
+  it('throws when Google returns an event with missing start/end', async () => {
+    const mockInsert = vi.fn().mockResolvedValue({ data: { id: 'x', summary: 'Bad' } });
+    const service = new GoogleCalendarService(
+      { events: { list: vi.fn(), insert: mockInsert, patch: vi.fn(), delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
+    );
+
+    await expect(
+      service.createEvent({ title: 'Bad', start: '2026-03-22T10:00:00Z', end: '2026-03-22T10:30:00Z' }),
+    ).rejects.toThrow('createEvent');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateEvent
+// ---------------------------------------------------------------------------
+
+describe('GoogleCalendarService.updateEvent', () => {
+  it('returns a normalized CalendarEvent on success', async () => {
+    const mockPatch = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
+    const service = new GoogleCalendarService(
+      { events: { list: vi.fn(), insert: vi.fn(), patch: mockPatch, delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
+    );
+
+    const event = await service.updateEvent('new-evt', { title: 'Updated' });
+
+    expect(event.id).toBe('new-evt');
+  });
+
+  it('only sends fields present in updates (partial patch)', async () => {
+    const mockPatch = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
+    const service = new GoogleCalendarService(
+      { events: { list: vi.fn(), insert: vi.fn(), patch: mockPatch, delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
+    );
+
+    await service.updateEvent('new-evt', { title: 'New title' });
+
+    const call = mockPatch.mock.calls[0][0];
+    expect(call.requestBody.summary).toBe('New title');
+    expect(call.requestBody.start).toBeUndefined();
+    expect(call.requestBody.end).toBeUndefined();
+    expect(call.requestBody.attendees).toBeUndefined();
+  });
+
+  it('calls patch with correct calendarId and eventId', async () => {
+    const mockPatch = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
+    const service = new GoogleCalendarService(
+      { events: { list: vi.fn(), insert: vi.fn(), patch: mockPatch, delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
+    );
+
+    await service.updateEvent('evt-123', { title: 'x' });
+
+    expect(mockPatch).toHaveBeenCalledWith(expect.objectContaining({ calendarId: 'primary', eventId: 'evt-123' }));
+  });
+
+  it('throws when Google returns an event with missing start/end', async () => {
+    const mockPatch = vi.fn().mockResolvedValue({ data: { id: 'x', summary: 'Bad' } });
+    const service = new GoogleCalendarService(
+      { events: { list: vi.fn(), insert: vi.fn(), patch: mockPatch, delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
+    );
+
+    await expect(service.updateEvent('x', { title: 'Bad' })).rejects.toThrow('updateEvent');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deleteEvent
+// ---------------------------------------------------------------------------
+
+describe('GoogleCalendarService.deleteEvent', () => {
+  it('calls events.delete with correct calendarId and eventId', async () => {
+    const mockDelete = vi.fn().mockResolvedValue({});
+    const service = new GoogleCalendarService(
+      { events: { list: vi.fn(), insert: vi.fn(), patch: vi.fn(), delete: mockDelete }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
+    );
+
+    await service.deleteEvent('evt-abc');
+
+    expect(mockDelete).toHaveBeenCalledWith({ calendarId: 'primary', eventId: 'evt-abc' });
+  });
+
+  it('resolves with undefined', async () => {
+    const service = new GoogleCalendarService(
+      { events: { list: vi.fn(), insert: vi.fn(), patch: vi.fn(), delete: vi.fn().mockResolvedValue({}) }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
+    );
+
+    const result = await service.deleteEvent('evt-abc');
+
+    expect(result).toBeUndefined();
   });
 });

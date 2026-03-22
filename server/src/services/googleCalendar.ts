@@ -17,6 +17,33 @@ export interface FreeSlot {
   end: string;
 }
 
+export interface BusyBlock {
+  start: string;
+  end: string;
+}
+
+export interface FreeBusyResult {
+  [email: string]: BusyBlock[];
+}
+
+export interface CreateEventInput {
+  title: string;
+  start: string;
+  end: string;
+  attendees?: string[];
+  description?: string;
+  location?: string;
+}
+
+export interface UpdateEventInput {
+  title?: string;
+  start?: string;
+  end?: string;
+  attendees?: string[];
+  description?: string;
+  location?: string;
+}
+
 export class GoogleCalendarService {
   constructor(private readonly calendar: calendar_v3.Calendar) {}
 
@@ -70,6 +97,58 @@ export class GoogleCalendarService {
     }
 
     return slots;
+  }
+
+  async getFreeBusy(emails: string[], start: Date, end: Date): Promise<FreeBusyResult> {
+    const res = await this.calendar.freebusy.query({
+      timeMin: start.toISOString(),
+      timeMax: end.toISOString(),
+      items: emails.map((id) => ({ id })),
+    });
+    const calendars = res.data.calendars ?? {};
+    return Object.fromEntries(
+      emails.map((email) => [
+        email,
+        (calendars[email]?.busy ?? []).map((b) => ({ start: b.start ?? '', end: b.end ?? '' })),
+      ]),
+    );
+  }
+
+  async createEvent(input: CreateEventInput): Promise<CalendarEvent> {
+    const res = await this.calendar.events.insert({
+      calendarId: 'primary',
+      requestBody: {
+        summary: input.title,
+        start: { dateTime: input.start },
+        end: { dateTime: input.end },
+        attendees: input.attendees?.map((email) => ({ email })),
+        description: input.description,
+        location: input.location,
+      },
+    });
+    const event = normalizeEvent(res.data);
+    if (!event) throw new Error('createEvent: Google returned an event with missing start/end');
+    return event;
+  }
+
+  async updateEvent(eventId: string, updates: UpdateEventInput): Promise<CalendarEvent> {
+    // Use patch (not events.update) so only provided fields are sent — unspecified fields remain unchanged
+    const requestBody: calendar_v3.Schema$Event = {};
+    if (updates.title       !== undefined) requestBody.summary     = updates.title;
+    if (updates.start       !== undefined) requestBody.start       = { dateTime: updates.start };
+    if (updates.end         !== undefined) requestBody.end         = { dateTime: updates.end };
+    if (updates.attendees   !== undefined) requestBody.attendees   = updates.attendees.map((email) => ({ email }));
+    if (updates.description !== undefined) requestBody.description = updates.description;
+    if (updates.location    !== undefined) requestBody.location    = updates.location;
+
+    const res = await this.calendar.events.patch({ calendarId: 'primary', eventId, requestBody });
+    const event = normalizeEvent(res.data);
+    if (!event) throw new Error('updateEvent: Google returned an event with missing start/end');
+    return event;
+  }
+
+  async deleteEvent(eventId: string): Promise<void> {
+    await this.calendar.events.delete({ calendarId: 'primary', eventId });
   }
 }
 
