@@ -10,6 +10,15 @@ Before creating any PR that includes `.tsx` or `.ts` UI files, invoke all three 
 
 This applies to any React code written in `app/src/`. Do not skip these even for small changes.
 
+## Pull Requests
+
+Always create PRs as drafts:
+```
+gh pr create --draft ...
+```
+
+Only mark ready for review after the merge checklist passes.
+
 ## Merge Checklist (Required)
 
 Before merging any PR, run in order:
