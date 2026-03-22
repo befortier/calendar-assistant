@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { UserRepository } from './client';
+import { UserRepository } from './user-repository';
 import { EncryptionManager } from '../crypto';
 import { MigrationManager } from './migrate';
 

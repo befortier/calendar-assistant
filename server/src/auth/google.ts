@@ -32,14 +32,14 @@ export class GoogleTokenExchanger {
     const { tokens } = await client.getToken(code);
     const userInfo = await client.getUserInfo(tokens);
 
-    if (!userInfo.id || !userInfo.email) {
-      throw new Error('Google did not return user id or email');
+    if (!userInfo.id || !userInfo.email || !tokens.access_token) {
+      throw new Error('Google did not return required user data');
     }
 
     return {
       googleId: userInfo.id,
       email: userInfo.email,
-      accessToken: tokens.access_token ?? '',
+      accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token ?? null,
     };
   }

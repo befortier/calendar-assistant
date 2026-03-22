@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { createAuthRouter } from './auth';
-import type { IUserRepository } from '../db/client';
+import type { IUserRepository } from '../db/user-repository';
 
 const SECRET = 'test-jwt-secret';
 

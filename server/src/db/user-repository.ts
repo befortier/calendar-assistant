@@ -53,7 +53,9 @@ export class UserRepository implements IUserRepository {
   }
 
   getUserById(id: string): User | null {
-    const row = this.db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined;
+    const row = this.db.prepare(
+      'SELECT id, google_id, email, encrypted_access_token, encrypted_refresh_token FROM users WHERE id = ?'
+    ).get(id) as UserRow | undefined;
     if (!row) return null;
     return {
       id: row.id,

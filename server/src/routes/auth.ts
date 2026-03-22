@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import type { IUserRepository } from '../db/client';
+import type { IUserRepository } from '../db/user-repository';
 import { signJwt } from '../auth/jwt';
 
 export interface GoogleTokenResult {
@@ -19,9 +19,9 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
   const router = Router();
 
   router.post('/google', async (req, res) => {
-    const { code } = req.body as { code?: string };
-    if (!code) {
-      res.status(400).json({ error: 'Missing code' });
+    const { code } = req.body as Record<string, unknown>;
+    if (!code || typeof code !== 'string') {
+      res.status(400).json({ error: 'Missing or invalid code' });
       return;
     }
 

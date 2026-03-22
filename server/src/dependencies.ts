@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { Config } from './env-schema';
 import { EncryptionManager } from './crypto';
-import { UserRepository } from './db/client';
+import { UserRepository } from './db/user-repository';
 import { MigrationManager } from './db/migrate';
 
 export class Dependencies {

@@ -62,6 +62,15 @@ describe('GoogleTokenExchanger.exchangeCode', () => {
     await expect(exchanger.exchangeCode('code')).rejects.toThrow();
   });
 
+  it('throws when Google does not return access_token', async () => {
+    const factory = makeFactory({
+      getToken: vi.fn().mockResolvedValue({ tokens: { access_token: null, refresh_token: null } }),
+    });
+    const exchanger = new GoogleTokenExchanger(CONFIG, factory);
+
+    await expect(exchanger.exchangeCode('code')).rejects.toThrow('Google did not return required user data');
+  });
+
   it('handles null refreshToken gracefully', async () => {
     const factory = makeFactory({
       getToken: vi.fn().mockResolvedValue({ tokens: { access_token: 'a', refresh_token: null } }),
