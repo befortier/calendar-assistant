@@ -4,7 +4,7 @@ import { config } from './config';
 import { Dependencies } from './dependencies';
 import { jwtMiddleware } from './auth/jwt';
 import { createAuthRouter } from './routes/auth';
-import { makeGoogleTokenExchanger } from './auth/google';
+import { GoogleTokenExchanger, realGoogleAuthFactory } from './auth/google';
 
 const deps = new Dependencies(config);
 deps.migrations.migrate();
@@ -14,13 +14,17 @@ const app = express();
 app.use(cors({ origin: config.ALLOWED_ORIGIN }));
 app.use(express.json());
 
-const tokenExchanger = makeGoogleTokenExchanger(
-  config.GOOGLE_CLIENT_ID,
-  config.GOOGLE_CLIENT_SECRET,
-  `${config.ALLOWED_ORIGIN}/auth/callback`,
+const googleExchanger = new GoogleTokenExchanger(
+  {
+    clientId: config.GOOGLE_CLIENT_ID,
+    clientSecret: config.GOOGLE_CLIENT_SECRET,
+    redirectUri: `${config.ALLOWED_ORIGIN}/auth/callback`,
+  },
+  realGoogleAuthFactory,
 );
+const tokenExchanger = googleExchanger.exchangeCode.bind(googleExchanger);
 
-app.use('/auth', createAuthRouter({ client: deps.client, jwtSecret: config.JWT_SECRET, tokenExchanger }));
+app.use('/auth', createAuthRouter({ users: deps.client, jwtSecret: config.JWT_SECRET, tokenExchanger }));
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true });

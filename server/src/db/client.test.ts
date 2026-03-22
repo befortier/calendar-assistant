@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { DatabaseClient } from './client';
+import { UserRepository } from './client';
 import { EncryptionManager } from '../crypto';
 import { MigrationManager } from './migrate';
 
@@ -10,11 +10,11 @@ function makeClient() {
   const db = new Database(':memory:');
   new MigrationManager(db).migrate();
   const encryption = new EncryptionManager(KEY);
-  return new DatabaseClient(db, encryption);
+  return new UserRepository(db, encryption);
 }
 
-describe('DatabaseClient.upsertUser', () => {
-  let client: DatabaseClient;
+describe('UserRepository.upsertUser', () => {
+  let client: UserRepository;
 
   beforeEach(() => {
     client = makeClient();
@@ -39,8 +39,8 @@ describe('DatabaseClient.upsertUser', () => {
   });
 });
 
-describe('DatabaseClient.getUserById', () => {
-  let client: DatabaseClient;
+describe('UserRepository.getUserById', () => {
+  let client: UserRepository;
 
   beforeEach(() => {
     client = makeClient();

@@ -10,6 +10,11 @@ export interface User {
   refreshToken: string | null;
 }
 
+export interface IUserRepository {
+  upsertUser(googleId: string, email: string, accessToken: string, refreshToken: string | null): string;
+  getUserById(id: string): User | null;
+}
+
 interface UserRow {
   id: string;
   google_id: string;
@@ -18,7 +23,7 @@ interface UserRow {
   encrypted_refresh_token: string | null;
 }
 
-export class DatabaseClient {
+export class UserRepository implements IUserRepository {
   private readonly db: IDatabase;
   private readonly encryption: EncryptionManager;
 

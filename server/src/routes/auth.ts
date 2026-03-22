@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { DatabaseClient } from '../db/client';
+import type { IUserRepository } from '../db/client';
 import { signJwt } from '../auth/jwt';
 
 export interface GoogleTokenResult {
@@ -10,7 +10,7 @@ export interface GoogleTokenResult {
 }
 
 interface AuthRouterDeps {
-  client: DatabaseClient;
+  users: IUserRepository;
   jwtSecret: string;
   tokenExchanger: (code: string) => Promise<GoogleTokenResult>;
 }
@@ -27,7 +27,7 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
 
     try {
       const { googleId, email, accessToken, refreshToken } = await deps.tokenExchanger(code);
-      const userId = deps.client.upsertUser(googleId, email, accessToken, refreshToken);
+      const userId = deps.users.upsertUser(googleId, email, accessToken, refreshToken);
       const token = signJwt(userId, deps.jwtSecret);
       res.json({ token });
     } catch (err) {
