@@ -239,12 +239,12 @@ describe('GoogleCalendarService.getFreeBusy', () => {
     const result = await service.getFreeBusy(['a@x.com', 'b@x.com'], START, END);
 
     expect(result).toEqual({
-      'a@x.com': [{ start: '2026-03-22T09:00:00Z', end: '2026-03-22T10:00:00Z' }],
-      'b@x.com': [{ start: '2026-03-22T14:00:00Z', end: '2026-03-22T15:00:00Z' }],
+      'a@x.com': { busy: [{ start: '2026-03-22T09:00:00Z', end: '2026-03-22T10:00:00Z' }] },
+      'b@x.com': { busy: [{ start: '2026-03-22T14:00:00Z', end: '2026-03-22T15:00:00Z' }] },
     });
   });
 
-  it('returns empty array for an email with an empty busy array', async () => {
+  it('returns empty busy array for an email with no busy blocks', async () => {
     const mockQuery = vi.fn().mockResolvedValue({
       data: { calendars: { 'a@x.com': { busy: [] } } },
     });
@@ -252,10 +252,10 @@ describe('GoogleCalendarService.getFreeBusy', () => {
 
     const result = await service.getFreeBusy(['a@x.com'], START, END);
 
-    expect(result).toEqual({ 'a@x.com': [] });
+    expect(result).toEqual({ 'a@x.com': { busy: [] } });
   });
 
-  it('returns empty array when busy key is missing from response entry', async () => {
+  it('returns empty busy array when busy key is missing from response entry', async () => {
     const mockQuery = vi.fn().mockResolvedValue({
       data: { calendars: { 'a@x.com': {} } },
     });
@@ -263,10 +263,10 @@ describe('GoogleCalendarService.getFreeBusy', () => {
 
     const result = await service.getFreeBusy(['a@x.com'], START, END);
 
-    expect(result).toEqual({ 'a@x.com': [] });
+    expect(result).toEqual({ 'a@x.com': { busy: [] } });
   });
 
-  it('returns empty array for an email absent from the response', async () => {
+  it('returns empty busy array for an email absent from the response', async () => {
     const mockQuery = vi.fn().mockResolvedValue({
       data: { calendars: { 'a@x.com': { busy: [] } } },
     });
@@ -274,7 +274,37 @@ describe('GoogleCalendarService.getFreeBusy', () => {
 
     const result = await service.getFreeBusy(['a@x.com', 'missing@x.com'], START, END);
 
-    expect(result).toEqual({ 'a@x.com': [], 'missing@x.com': [] });
+    expect(result).toEqual({
+      'a@x.com': { busy: [] },
+      'missing@x.com': { busy: [] },
+    });
+  });
+
+  it('returns errors array when Google reports notFound for a calendar', async () => {
+    const mockQuery = vi.fn().mockResolvedValue({
+      data: {
+        calendars: {
+          'accessible@x.com': {
+            busy: [{ start: '2026-03-22T09:00:00Z', end: '2026-03-22T10:00:00Z' }],
+          },
+          'private@x.com': {
+            errors: [{ domain: 'global', reason: 'notFound' }],
+            busy: [],
+          },
+        },
+      },
+    });
+    const service = new GoogleCalendarService(makeCalendar([], { freebusyQuery: mockQuery }));
+
+    const result = await service.getFreeBusy(['accessible@x.com', 'private@x.com'], START, END);
+
+    expect(result).toEqual({
+      'accessible@x.com': { busy: [{ start: '2026-03-22T09:00:00Z', end: '2026-03-22T10:00:00Z' }] },
+      'private@x.com': {
+        busy: [],
+        errors: [{ domain: 'global', reason: 'notFound' }],
+      },
+    });
   });
 
   it('calls freebusy.query with correct timeMin, timeMax, and items', async () => {

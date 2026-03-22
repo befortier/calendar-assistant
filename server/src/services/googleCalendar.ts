@@ -23,9 +23,17 @@ export interface BusyBlock {
   end: string;
 }
 
-export interface FreeBusyResult {
-  [email: string]: BusyBlock[];
+export interface CalendarAccessError {
+  domain: string;
+  reason: string;
 }
+
+export interface CalendarFreeBusy {
+  busy: BusyBlock[];
+  errors?: CalendarAccessError[];
+}
+
+export type FreeBusyResult = Record<string, CalendarFreeBusy>;
 
 export interface CreateEventInput {
   title: string;
@@ -70,10 +78,12 @@ export class GoogleCalendarService {
     });
     const calendars = res.data.calendars ?? {};
     return Object.fromEntries(
-      emails.map((email) => [
-        email,
-        (calendars[email]?.busy ?? []).map((b) => ({ start: b.start ?? '', end: b.end ?? '' })),
-      ]),
+      emails.map((email) => {
+        const entry = calendars[email];
+        const busy = (entry?.busy ?? []).map((b) => ({ start: b.start ?? '', end: b.end ?? '' }));
+        const errors = entry?.errors?.map((e) => ({ domain: e.domain ?? '', reason: e.reason ?? '' }));
+        return [email, errors?.length ? { busy, errors } : { busy }];
+      }),
     );
   }
 
