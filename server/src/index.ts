@@ -1,19 +1,20 @@
-import express from 'express'
-import cors from 'cors'
-import dotenv from 'dotenv'
+import express from 'express';
+import cors from 'cors';
+import { config } from './config';
+import { Dependencies } from './dependencies';
 
-dotenv.config()
+const deps = new Dependencies(config);
+deps.migrations.migrate();
 
-const app = express()
-const PORT = process.env.PORT ?? 3001
+const app = express();
 
-app.use(cors())
-app.use(express.json())
+app.use(cors({ origin: config.ALLOWED_ORIGIN }));
+app.use(express.json());
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true })
-})
+  res.json({ ok: true });
+});
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`)
-})
+app.listen(config.PORT, () => {
+  console.log(`Server running on port ${config.PORT}`);
+});

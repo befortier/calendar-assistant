@@ -2,6 +2,9 @@
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# SQLite database
+server/data/*.db
 .worktrees/
 
 # Dependencies
