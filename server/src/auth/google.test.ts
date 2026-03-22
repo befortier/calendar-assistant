@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { GoogleTokenExchanger } from './google';
+import { GoogleTokenExchanger, GoogleAuthError } from './google';
 import type { IGoogleAuthFactory } from './google';
 
 const CONFIG = {
@@ -68,7 +68,8 @@ describe('GoogleTokenExchanger.exchangeCode', () => {
     });
     const exchanger = new GoogleTokenExchanger(CONFIG, factory);
 
-    await expect(exchanger.exchangeCode('code')).rejects.toThrow('Google did not return required user data');
+    await expect(exchanger.exchangeCode('code')).rejects.toThrow('Google did not return an access token');
+    await expect(exchanger.exchangeCode('code')).rejects.toBeInstanceOf(GoogleAuthError);
   });
 
   it('handles null refreshToken gracefully', async () => {

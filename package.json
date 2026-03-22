@@ -12,8 +12,6 @@
     "dev": "concurrently \"npm run dev:app\" \"npm run dev:server\""
   },
   "devDependencies": {
-    "@types/supertest": "^7.2.0",
-    "concurrently": "^8.2.2",
-    "supertest": "^7.2.2"
+    "concurrently": "^8.2.2"
   }
 }

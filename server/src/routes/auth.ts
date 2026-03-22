@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { IUserRepository } from '../db/user-repository';
 import { signJwt } from '../auth/jwt';
+import { GoogleAuthError } from '../auth/google';
 
 export interface GoogleTokenResult {
   googleId: string;
@@ -32,10 +33,11 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
       res.json({ token });
     } catch (err) {
       console.error('Auth error:', err);
-      const isClientError = err instanceof Error && /invalid_grant|bad\.request/i.test(err.message);
-      res
-        .status(isClientError ? 400 : 500)
-        .json({ error: isClientError ? 'Invalid or expired authorization code' : 'Authentication failed' });
+      if (err instanceof GoogleAuthError) {
+        res.status(400).json({ error: 'Invalid or expired authorization code' });
+      } else {
+        res.status(500).json({ error: 'Authentication failed' });
+      }
     }
   });
 

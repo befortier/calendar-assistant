@@ -3,6 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import { createAuthRouter } from './auth';
 import type { IUserRepository } from '../db/user-repository';
+import { GoogleAuthError } from '../auth/google';
 
 const SECRET = 'test-jwt-secret';
 
@@ -57,9 +58,17 @@ describe('POST /auth/google', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 500 when tokenExchanger throws', async () => {
-    tokenExchanger.mockRejectedValueOnce(new Error('Google error'));
+  it('returns 400 when tokenExchanger throws GoogleAuthError', async () => {
+    tokenExchanger.mockRejectedValueOnce(new GoogleAuthError('invalid_grant'));
+    const res = await request(app).post('/auth/google').send({ code: 'bad-code' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Invalid or expired authorization code');
+  });
+
+  it('returns 500 when tokenExchanger throws a non-auth error', async () => {
+    tokenExchanger.mockRejectedValueOnce(new Error('Database unreachable'));
     const res = await request(app).post('/auth/google').send({ code: 'bad-code' });
     expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Authentication failed');
   });
 });

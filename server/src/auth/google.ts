@@ -1,6 +1,13 @@
 import { google } from 'googleapis';
 import type { GoogleTokenResult } from '../routes/auth';
 
+export class GoogleAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GoogleAuthError';
+  }
+}
+
 export interface IOAuth2Client {
   getToken(code: string): Promise<{ tokens: { access_token?: string | null; refresh_token?: string | null } }>;
   getUserInfo(tokens: { access_token?: string | null; refresh_token?: string | null }): Promise<{ id?: string | null; email?: string | null }>;
@@ -29,9 +36,14 @@ export class GoogleTokenExchanger {
       this.config.redirectUri,
     );
 
-    const { tokens } = await client.getToken(code);
+    let tokens: { access_token?: string | null; refresh_token?: string | null };
+    try {
+      ({ tokens } = await client.getToken(code));
+    } catch (err) {
+      throw new GoogleAuthError(err instanceof Error ? err.message : 'Google rejected the authorization code');
+    }
     if (!tokens.access_token) {
-      throw new Error('Google did not return required user data');
+      throw new GoogleAuthError('Google did not return an access token');
     }
 
     const userInfo = await client.getUserInfo(tokens);
