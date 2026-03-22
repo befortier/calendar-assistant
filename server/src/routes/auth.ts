@@ -32,7 +32,7 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
       res.json({ token });
     } catch (err) {
       console.error('Auth error:', err);
-      const isClientError = err instanceof Error && /invalid_grant|bad.request/i.test(err.message);
+      const isClientError = err instanceof Error && /invalid_grant|bad\.request/i.test(err.message);
       res
         .status(isClientError ? 400 : 500)
         .json({ error: isClientError ? 'Invalid or expired authorization code' : 'Authentication failed' });

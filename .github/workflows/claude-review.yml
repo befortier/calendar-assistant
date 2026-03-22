@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   claude-review:
-    if: ${{ !contains(github.event.pull_request.title, '[no-review]') && !contains(github.event.head_commit.message, '[no-review]') }}
+    if: ${{ !contains(github.event.pull_request.title, '[no-review]') && !contains(github.event.pull_request.body, '[no-review]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
