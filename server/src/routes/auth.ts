@@ -32,10 +32,10 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
       const token = signJwt(userId, deps.jwtSecret);
       res.json({ token });
     } catch (err) {
-      console.error('Auth error:', err);
       if (err instanceof GoogleAuthError) {
         res.status(400).json({ error: 'Invalid or expired authorization code' });
       } else {
+        console.error('Auth error:', err);
         res.status(500).json({ error: 'Authentication failed' });
       }
     }
