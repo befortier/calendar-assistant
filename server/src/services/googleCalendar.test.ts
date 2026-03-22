@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { GoogleCalendarService } from './googleCalendar';
+import { GoogleCalendarService, invertBusy } from './googleCalendar';
 import type { calendar_v3 } from 'googleapis';
 
 function makeCalendar(
@@ -48,6 +48,7 @@ describe('GoogleCalendarService.getEvents', () => {
         allDay: false,
         location: 'Zoom',
         description: 'Daily sync',
+        attendees: undefined,
       },
     ]);
   });
@@ -75,6 +76,7 @@ describe('GoogleCalendarService.getEvents', () => {
         allDay: true,
         location: undefined,
         description: undefined,
+        attendees: undefined,
       },
     ]);
   });
@@ -109,6 +111,44 @@ describe('GoogleCalendarService.getEvents', () => {
     expect(events).toEqual([]);
   });
 
+  it('populates attendees as email strings when event has attendees', async () => {
+    const service = new GoogleCalendarService(
+      makeCalendar([
+        {
+          id: 'e1',
+          summary: 'Team sync',
+          start: { dateTime: '2026-03-22T09:00:00Z' },
+          end:   { dateTime: '2026-03-22T10:00:00Z' },
+          attendees: [
+            { email: 'alice@x.com', responseStatus: 'accepted' },
+            { email: 'bob@x.com',   responseStatus: 'needsAction' },
+          ],
+        },
+      ]),
+    );
+
+    const events = await service.getEvents(START, END);
+
+    expect(events[0].attendees).toEqual(['alice@x.com', 'bob@x.com']);
+  });
+
+  it('sets attendees to undefined when event has no attendees', async () => {
+    const service = new GoogleCalendarService(
+      makeCalendar([
+        {
+          id: 'e1',
+          summary: 'Solo block',
+          start: { dateTime: '2026-03-22T09:00:00Z' },
+          end:   { dateTime: '2026-03-22T10:00:00Z' },
+        },
+      ]),
+    );
+
+    const events = await service.getEvents(START, END);
+
+    expect(events[0].attendees).toBeUndefined();
+  });
+
   it('calls list with correct timeMin, timeMax, and calendarId', async () => {
     const mockList = vi.fn().mockResolvedValue({ data: { items: [] } });
     const service = new GoogleCalendarService({
@@ -127,100 +167,56 @@ describe('GoogleCalendarService.getEvents', () => {
   });
 });
 
-describe('GoogleCalendarService.getFreeSlots', () => {
-  it('returns the full range as one free slot when there are no events', async () => {
-    const service = new GoogleCalendarService(makeCalendar([]));
-    const slots = await service.getFreeSlots(START, END);
+// ---------------------------------------------------------------------------
+// invertBusy — pure utility: busy blocks + range → free windows
+// ---------------------------------------------------------------------------
 
+describe('invertBusy', () => {
+  it('returns the full range as one free slot when there are no busy blocks', () => {
+    const slots = invertBusy([], START, END);
     expect(slots).toEqual([{ start: START.toISOString(), end: END.toISOString() }]);
   });
 
-  it('returns gap between two events', async () => {
-    const service = new GoogleCalendarService(
-      makeCalendar([
-        {
-          id: 'e1',
-          summary: 'Morning meeting',
-          start: { dateTime: '2026-03-22T09:00:00Z' },
-          end: { dateTime: '2026-03-22T10:00:00Z' },
-        },
-        {
-          id: 'e2',
-          summary: 'Afternoon meeting',
-          start: { dateTime: '2026-03-22T14:00:00Z' },
-          end: { dateTime: '2026-03-22T15:00:00Z' },
-        },
-      ]),
+  it('returns gap between two busy blocks', () => {
+    const slots = invertBusy(
+      [
+        { start: '2026-03-22T09:00:00Z', end: '2026-03-22T10:00:00Z' },
+        { start: '2026-03-22T14:00:00Z', end: '2026-03-22T15:00:00Z' },
+      ],
+      START,
+      END,
     );
 
-    const slots = await service.getFreeSlots(START, END);
-
     expect(slots).toEqual([
-      { start: START.toISOString(), end: '2026-03-22T09:00:00.000Z' },
+      { start: START.toISOString(),        end: '2026-03-22T09:00:00.000Z' },
       { start: '2026-03-22T10:00:00.000Z', end: '2026-03-22T14:00:00.000Z' },
       { start: '2026-03-22T15:00:00.000Z', end: END.toISOString() },
     ]);
   });
 
-  it('merges overlapping events before computing free slots', async () => {
-    const service = new GoogleCalendarService(
-      makeCalendar([
-        {
-          id: 'e1',
-          summary: 'Meeting A',
-          start: { dateTime: '2026-03-22T09:00:00Z' },
-          end: { dateTime: '2026-03-22T11:00:00Z' },
-        },
-        {
-          id: 'e2',
-          summary: 'Meeting B',
-          start: { dateTime: '2026-03-22T10:00:00Z' },
-          end: { dateTime: '2026-03-22T12:00:00Z' },
-        },
-      ]),
+  it('merges overlapping busy blocks before computing free windows', () => {
+    const slots = invertBusy(
+      [
+        { start: '2026-03-22T09:00:00Z', end: '2026-03-22T11:00:00Z' },
+        { start: '2026-03-22T10:00:00Z', end: '2026-03-22T12:00:00Z' },
+      ],
+      START,
+      END,
     );
 
-    const slots = await service.getFreeSlots(START, END);
-
     expect(slots).toEqual([
-      { start: START.toISOString(), end: '2026-03-22T09:00:00.000Z' },
+      { start: START.toISOString(),        end: '2026-03-22T09:00:00.000Z' },
       { start: '2026-03-22T12:00:00.000Z', end: END.toISOString() },
     ]);
   });
 
-  it('returns empty array when a single event spans the full range', async () => {
-    const service = new GoogleCalendarService(
-      makeCalendar([
-        {
-          id: 'e1',
-          summary: 'All day block',
-          start: { dateTime: START.toISOString() },
-          end: { dateTime: END.toISOString() },
-        },
-      ]),
+  it('returns empty array when a single block spans the full range', () => {
+    const slots = invertBusy(
+      [{ start: START.toISOString(), end: END.toISOString() }],
+      START,
+      END,
     );
-
-    const slots = await service.getFreeSlots(START, END);
-
     expect(slots).toEqual([]);
-  });
-
-  it('skips all-day events when computing free slots', async () => {
-    const service = new GoogleCalendarService(
-      makeCalendar([
-        {
-          id: 'day1',
-          summary: 'Holiday',
-          start: { date: '2026-03-22' },
-          end: { date: '2026-03-23' },
-        },
-      ]),
-    );
-
-    const slots = await service.getFreeSlots(START, END);
-
-    // All-day events don't occupy timed slots
-    expect(slots).toEqual([{ start: START.toISOString(), end: END.toISOString() }]);
   });
 });
 
