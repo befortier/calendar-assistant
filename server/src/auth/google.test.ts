@@ -53,13 +53,32 @@ describe('GoogleTokenExchanger.exchangeCode', () => {
     expect(getToken).toHaveBeenCalledWith('my-code');
   });
 
-  it('throws when Google does not return id or email', async () => {
+  it('throws GoogleAuthError when Google does not return id or email', async () => {
     const factory = makeFactory({
       getUserInfo: vi.fn().mockResolvedValue({ id: null, email: null }),
     });
     const exchanger = new GoogleTokenExchanger(CONFIG, factory);
 
-    await expect(exchanger.exchangeCode('code')).rejects.toThrow();
+    await expect(exchanger.exchangeCode('code')).rejects.toBeInstanceOf(GoogleAuthError);
+  });
+
+  it('throws GoogleAuthError when getUserInfo rejects', async () => {
+    const factory = makeFactory({
+      getUserInfo: vi.fn().mockRejectedValue(new Error('403 Forbidden')),
+    });
+    const exchanger = new GoogleTokenExchanger(CONFIG, factory);
+
+    await expect(exchanger.exchangeCode('code')).rejects.toBeInstanceOf(GoogleAuthError);
+  });
+
+  it('throws GoogleAuthError when getToken rejects', async () => {
+    const factory = makeFactory({
+      getToken: vi.fn().mockRejectedValue(new Error('invalid_grant')),
+    });
+    const exchanger = new GoogleTokenExchanger(CONFIG, factory);
+
+    await expect(exchanger.exchangeCode('code')).rejects.toBeInstanceOf(GoogleAuthError);
+    await expect(exchanger.exchangeCode('code')).rejects.toThrow('invalid_grant');
   });
 
   it('throws when Google does not return access_token', async () => {
