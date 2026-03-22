@@ -314,9 +314,11 @@ describe('GoogleCalendarService.getFreeBusy', () => {
     await service.getFreeBusy(['a@x.com', 'b@x.com'], START, END);
 
     expect(mockQuery).toHaveBeenCalledWith({
-      timeMin: START.toISOString(),
-      timeMax: END.toISOString(),
-      items: [{ id: 'a@x.com' }, { id: 'b@x.com' }],
+      requestBody: {
+        timeMin: START.toISOString(),
+        timeMax: END.toISOString(),
+        items: [{ id: 'a@x.com' }, { id: 'b@x.com' }],
+      },
     });
   });
 });
@@ -351,6 +353,7 @@ describe('GoogleCalendarService.createEvent', () => {
       start: '2026-03-22T10:00:00Z',
       end:   '2026-03-22T10:30:00Z',
       allDay: false,
+      attendees: undefined,
       location: undefined,
       description: undefined,
     });

@@ -72,9 +72,11 @@ export class GoogleCalendarService {
 
   async getFreeBusy(emails: string[], start: Date, end: Date): Promise<FreeBusyResult> {
     const res = await this.calendar.freebusy.query({
-      timeMin: start.toISOString(),
-      timeMax: end.toISOString(),
-      items: emails.map((id) => ({ id })),
+      requestBody: {
+        timeMin: start.toISOString(),
+        timeMax: end.toISOString(),
+        items: emails.map((id) => ({ id })),
+      },
     });
     const calendars = res.data.calendars ?? {};
     return Object.fromEntries(
