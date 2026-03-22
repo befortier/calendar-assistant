@@ -20,7 +20,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          claude_args: "--max-turns 20 --model ${{ github.event.action == 'opened' && 'claude-sonnet-4-6' || 'claude-haiku-4-5-20251001' }} --allowedTools Bash,Read,Glob,Grep"
+          claude_args: "--max-turns 20 --model ${{ github.event.pull_request.draft && 'claude-haiku-4-5-20251001' || 'claude-sonnet-4-6' }} --allowedTools Bash,Read,Glob,Grep"
           prompt: |
             You are reviewing a pull request. Do not explore the repository. Follow these steps in order without deviation:
 
