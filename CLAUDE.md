@@ -1,14 +1,22 @@
 # Calendar Assistant — Claude Instructions
 
-## React Code Review (Required)
+## Frontend Code Review (Required)
 
-Before creating any PR that includes `.tsx` or `.ts` UI files, invoke all three of these skills in order:
+Before creating any PR that includes files in `app/src/`, invoke all three of these skills in order:
 
 1. `react-best-practices` — performance, data fetching, bundle optimization
 2. `composition-patterns` — component architecture, reusability, prop design
 3. `web-design-guidelines` — accessibility, UX, visual best practices
 
-This applies to any React code written in `app/src/`. Do not skip these even for small changes.
+Do not skip these even for small changes.
+
+## Backend Code Review (Required)
+
+Before creating any PR that includes files in `server/src/`, invoke:
+
+1. `typescript-database-layer` — verify layering (DatabaseClient → Repository → Service), DI patterns, test seams, SQL placement
+
+Apply the skill's architecture check: confirm no business logic in the DB layer, no raw SQL in services, and all external clients (Google, Anthropic) are injected via interfaces.
 
 ## Pull Requests
 
