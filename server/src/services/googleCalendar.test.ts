@@ -70,6 +70,25 @@ describe('GoogleCalendarService.getEvents', () => {
     ]);
   });
 
+  it('skips events that have no start or end date fields', async () => {
+    const service = new GoogleCalendarService(
+      makeCalendar([
+        { id: 'bad', summary: 'Broken event', start: {}, end: {} },
+        {
+          id: 'good',
+          summary: 'Valid event',
+          start: { dateTime: '2026-03-22T09:00:00Z' },
+          end: { dateTime: '2026-03-22T10:00:00Z' },
+        },
+      ]),
+    );
+
+    const events = await service.getEvents(START, END);
+
+    expect(events).toHaveLength(1);
+    expect(events[0].id).toBe('good');
+  });
+
   it('returns empty array when items is undefined', async () => {
     const calendar = {
       events: { list: vi.fn().mockResolvedValue({ data: {} }) },

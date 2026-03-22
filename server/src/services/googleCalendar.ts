@@ -29,7 +29,9 @@ export class GoogleCalendarService {
       orderBy: 'startTime',
     });
 
-    return (res.data.items ?? []).map(normalizeEvent);
+    return (res.data.items ?? [])
+      .map(normalizeEvent)
+      .filter((e): e is CalendarEvent => e !== null);
   }
 
   async getFreeSlots(start: Date, end: Date): Promise<FreeSlot[]> {
@@ -81,23 +83,28 @@ export function createGoogleCalendarService(
 
   if (onTokenRefresh) {
     auth.on('tokens', (tokens) => {
-      onTokenRefresh({
-        accessToken: tokens.access_token!,
-        refreshToken: tokens.refresh_token ?? undefined,
-      });
+      if (tokens.access_token) {
+        onTokenRefresh({
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token ?? undefined,
+        });
+      }
     });
   }
 
   return new GoogleCalendarService(google.calendar({ version: 'v3', auth }));
 }
 
-function normalizeEvent(event: calendar_v3.Schema$Event): CalendarEvent {
+function normalizeEvent(event: calendar_v3.Schema$Event): CalendarEvent | null {
   const allDay = Boolean(event.start?.date && !event.start?.dateTime);
+  const start = (allDay ? event.start?.date : event.start?.dateTime) ?? '';
+  const end = (allDay ? event.end?.date : event.end?.dateTime) ?? '';
+  if (!start || !end) return null;
   return {
     id: event.id ?? '',
     title: event.summary ?? '',
-    start: (allDay ? event.start?.date : event.start?.dateTime) ?? '',
-    end: (allDay ? event.end?.date : event.end?.dateTime) ?? '',
+    start,
+    end,
     allDay,
     location: event.location ?? undefined,
     description: event.description ?? undefined,
