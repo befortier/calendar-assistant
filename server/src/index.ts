@@ -15,6 +15,6 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.listen(config.PORT, () => {
+app.listen(parseInt(config.PORT), () => {
   console.log(`Server running on port ${config.PORT}`);
 });

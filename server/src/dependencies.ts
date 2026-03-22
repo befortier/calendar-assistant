@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import fs from 'fs';
 import path from 'path';
 import { Config } from './env-schema';
 import { EncryptionManager } from './crypto';
@@ -11,7 +12,9 @@ export class Dependencies {
   readonly client: DatabaseClient;
 
   constructor(config: Config) {
-    const db = new Database(path.join(__dirname, '../data/calendar.db'));
+    const dbDir = path.join(__dirname, '../data');
+    fs.mkdirSync(dbDir, { recursive: true });
+    const db = new Database(path.join(dbDir, 'calendar.db'));
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
 
