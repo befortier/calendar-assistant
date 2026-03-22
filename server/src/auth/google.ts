@@ -46,9 +46,14 @@ export class GoogleTokenExchanger {
       throw new GoogleAuthError('Google did not return an access token');
     }
 
-    const userInfo = await client.getUserInfo(tokens);
+    let userInfo: { id?: string | null; email?: string | null };
+    try {
+      userInfo = await client.getUserInfo(tokens);
+    } catch (err) {
+      throw new GoogleAuthError(err instanceof Error ? err.message : 'Failed to fetch Google user info');
+    }
     if (!userInfo.id || !userInfo.email) {
-      throw new Error('Google did not return required user data');
+      throw new GoogleAuthError('Google did not return required user data');
     }
 
     return {
