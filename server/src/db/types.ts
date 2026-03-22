@@ -3,5 +3,6 @@ import type { Statement } from 'better-sqlite3';
 export interface IDatabase {
   exec(sql: string): this;
   prepare(sql: string): Statement;
-  transaction<T extends (...args: unknown[]) => unknown>(fn: T): T;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  transaction<T extends (...args: any[]) => any>(fn: T): any;
 }
