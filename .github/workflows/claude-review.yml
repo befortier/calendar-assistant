@@ -22,7 +22,7 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          COMMIT_MSG=$(git log -1 --pretty=%B)
+          COMMIT_MSG=$(git log -1 --pretty=%B "${{ github.event.pull_request.head.sha }}")
           if echo "$COMMIT_MSG" | grep -qF '[no-review]' || \
              echo "$PR_TITLE" | grep -qF '[no-review]' || \
              echo "$PR_BODY" | grep -qF '[no-review]'; then
