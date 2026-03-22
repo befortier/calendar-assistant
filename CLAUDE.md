@@ -15,8 +15,9 @@ Do not skip these even for small changes.
 Before creating any PR that includes files in `server/src/`, invoke:
 
 1. `typescript-database-layer` — verify layering (DatabaseClient → Repository → Service), DI patterns, test seams, SQL placement
+2. `express-route-handlers` — verify request body runtime validation, JWT payload validation, dependency injection in handlers
 
-Apply the skill's architecture check: confirm no business logic in the DB layer, no raw SQL in services, and all external clients (Google, Anthropic) are injected via interfaces.
+Apply both skill checklists before pushing.
 
 ## Pull Requests
 
