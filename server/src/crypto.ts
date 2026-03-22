@@ -27,6 +27,10 @@ export class EncryptionManager {
       throw new Error(`Invalid ciphertext format: expected 3 colon-separated parts, got ${parts.length}`);
     }
     const [ivHex, tagHex, encryptedHex] = parts;
+    const HEX_RE = /^[0-9a-fA-F]+$/;
+    if (!HEX_RE.test(ivHex) || !HEX_RE.test(tagHex) || !HEX_RE.test(encryptedHex)) {
+      throw new Error('Invalid ciphertext: non-hex characters detected');
+    }
     const iv = Buffer.from(ivHex, 'hex');
     const tag = Buffer.from(tagHex, 'hex');
     const encrypted = Buffer.from(encryptedHex, 'hex');

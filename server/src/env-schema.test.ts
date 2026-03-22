@@ -16,7 +16,7 @@ describe('env schema', () => {
 
   it('applies defaults for PORT and ALLOWED_ORIGIN', () => {
     const result = schema.parse(VALID_ENV);
-    expect(result.PORT).toBe('3001');
+    expect(result.PORT).toBe(3001);
     expect(result.ALLOWED_ORIGIN).toBe('http://localhost:5173');
   });
 
@@ -39,7 +39,7 @@ describe('env schema', () => {
 
   it('allows custom PORT and ALLOWED_ORIGIN', () => {
     const result = schema.parse({ ...VALID_ENV, PORT: '8080', ALLOWED_ORIGIN: 'https://app.example.com' });
-    expect(result.PORT).toBe('8080');
+    expect(result.PORT).toBe(8080);
     expect(result.ALLOWED_ORIGIN).toBe('https://app.example.com');
   });
 });
