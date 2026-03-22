@@ -8,9 +8,9 @@ function makeCalendar(
 ): calendar_v3.Calendar {
   return {
     events: {
-      list:   vi.fn().mockResolvedValue({ data: { items } }),
+      list: vi.fn().mockResolvedValue({ data: { items } }),
       insert: vi.fn(),
-      patch:  vi.fn(),
+      patch: vi.fn(),
       delete: vi.fn(),
     },
     freebusy: {
