@@ -20,14 +20,17 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          claude_args: "--max-turns 10 --model claude-sonnet-4-6 --allowedTools Bash,Read,Glob,Grep"
+          claude_args: "--max-turns 20 --model claude-sonnet-4-6 --allowedTools Bash,Read,Glob,Grep"
           prompt: |
-            You are reviewing a pull request for a React + TypeScript + Tailwind + Node/Express app.
+            You are reviewing a pull request. Do not explore the repository. Follow these steps in order without deviation:
 
-            Steps:
-            1. Run: gh pr diff ${{ github.event.pull_request.number }} to get the diff
-            2. Review the changed files against the criteria below
-            3. Run: gh pr comment ${{ github.event.pull_request.number }} --body "<your review>" to post your findings
+            Step 1 — run exactly this command and nothing else first:
+            gh pr diff ${{ github.event.pull_request.number }}
+
+            Step 2 — review the diff output against the criteria below.
+
+            Step 3 — run exactly this command to post your findings (required, do not skip):
+            gh pr comment ${{ github.event.pull_request.number }} --body "<your review>"
 
             If you find issues, post them with file name, line number, the problematic code quoted, explanation, and suggested fix.
             If you find nothing, post: "✅ Code review complete — no issues found."
