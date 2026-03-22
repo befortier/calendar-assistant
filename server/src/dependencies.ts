@@ -3,13 +3,13 @@ import fs from 'fs';
 import path from 'path';
 import { Config } from './env-schema';
 import { EncryptionManager } from './crypto';
-import { UserRepository } from './db/user-repository';
+import { UserRepository, type IUserRepository } from './db/user-repository';
 import { MigrationManager } from './db/migrate';
 
 export class Dependencies {
   readonly encryption: EncryptionManager;
   readonly migrations: MigrationManager;
-  readonly client: UserRepository;
+  readonly client: IUserRepository;
 
   constructor(config: Config) {
     const dbDir = path.join(__dirname, '../data');
