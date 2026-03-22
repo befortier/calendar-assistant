@@ -16,7 +16,23 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check for skip flag
+        id: skip_check
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B "${{ github.event.pull_request.head.sha }}")
+          if echo "$COMMIT_MSG" | grep -qF '[no-review]' || \
+             echo "$PR_TITLE" | grep -qF '[no-review]' || \
+             echo "$PR_BODY" | grep -qF '[no-review]'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: anthropics/claude-code-action@v1
+        if: steps.skip_check.outputs.skip != 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
