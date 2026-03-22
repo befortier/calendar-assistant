@@ -54,11 +54,13 @@ export interface UpdateEventInput {
 }
 
 export class GoogleCalendarService {
+  private readonly calendarId = 'primary';
+
   constructor(private readonly calendar: calendar_v3.Calendar) {}
 
   async getEvents(start: Date, end: Date): Promise<CalendarEvent[]> {
     const res = await this.calendar.events.list({
-      calendarId: 'primary',
+      calendarId: this.calendarId,
       timeMin: start.toISOString(),
       timeMax: end.toISOString(),
       singleEvents: true,
@@ -91,7 +93,7 @@ export class GoogleCalendarService {
 
   async createEvent(input: CreateEventInput): Promise<CalendarEvent> {
     const res = await this.calendar.events.insert({
-      calendarId: 'primary',
+      calendarId: this.calendarId,
       requestBody: {
         summary: input.title,
         start: { dateTime: input.start },
@@ -116,14 +118,14 @@ export class GoogleCalendarService {
     if (updates.description !== undefined) requestBody.description = updates.description;
     if (updates.location    !== undefined) requestBody.location    = updates.location;
 
-    const res = await this.calendar.events.patch({ calendarId: 'primary', eventId, requestBody });
+    const res = await this.calendar.events.patch({ calendarId: this.calendarId, eventId, requestBody });
     const event = normalizeEvent(res.data);
     if (!event) throw new Error('updateEvent: Google returned an event with missing start/end');
     return event;
   }
 
   async deleteEvent(eventId: string): Promise<void> {
-    await this.calendar.events.delete({ calendarId: 'primary', eventId });
+    await this.calendar.events.delete({ calendarId: this.calendarId, eventId });
   }
 }
 

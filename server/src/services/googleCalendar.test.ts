@@ -4,14 +4,19 @@ import type { calendar_v3 } from 'googleapis';
 
 function makeCalendar(
   items: calendar_v3.Schema$Event[],
-  overrides?: { freebusyQuery?: ReturnType<typeof vi.fn> },
+  overrides?: {
+    freebusyQuery?: ReturnType<typeof vi.fn>;
+    insert?: ReturnType<typeof vi.fn>;
+    patch?: ReturnType<typeof vi.fn>;
+    delete?: ReturnType<typeof vi.fn>;
+  },
 ): calendar_v3.Calendar {
   return {
     events: {
       list: vi.fn().mockResolvedValue({ data: { items } }),
-      insert: vi.fn(),
-      patch: vi.fn(),
-      delete: vi.fn(),
+      insert: overrides?.insert ?? vi.fn(),
+      patch: overrides?.patch ?? vi.fn(),
+      delete: overrides?.delete ?? vi.fn(),
     },
     freebusy: {
       query: overrides?.freebusyQuery ?? vi.fn(),
@@ -337,9 +342,7 @@ const MOCK_EVENT_RESPONSE: calendar_v3.Schema$Event = {
 describe('GoogleCalendarService.createEvent', () => {
   it('returns a normalized CalendarEvent on success', async () => {
     const mockInsert = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
-    const service = new GoogleCalendarService(
-      { events: { list: vi.fn(), insert: mockInsert, patch: vi.fn(), delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
-    );
+    const service = new GoogleCalendarService(makeCalendar([], { insert: mockInsert }));
 
     const event = await service.createEvent({
       title: 'Team sync',
@@ -361,9 +364,7 @@ describe('GoogleCalendarService.createEvent', () => {
 
   it('includes attendees in requestBody when provided', async () => {
     const mockInsert = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
-    const service = new GoogleCalendarService(
-      { events: { list: vi.fn(), insert: mockInsert, patch: vi.fn(), delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
-    );
+    const service = new GoogleCalendarService(makeCalendar([], { insert: mockInsert }));
 
     await service.createEvent({
       title: 'Team sync',
@@ -383,9 +384,7 @@ describe('GoogleCalendarService.createEvent', () => {
 
   it('omits attendees from requestBody when not provided', async () => {
     const mockInsert = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
-    const service = new GoogleCalendarService(
-      { events: { list: vi.fn(), insert: mockInsert, patch: vi.fn(), delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
-    );
+    const service = new GoogleCalendarService(makeCalendar([], { insert: mockInsert }));
 
     await service.createEvent({ title: 'Team sync', start: '2026-03-22T10:00:00Z', end: '2026-03-22T10:30:00Z' });
 
@@ -398,9 +397,7 @@ describe('GoogleCalendarService.createEvent', () => {
 
   it('throws when Google returns an event with missing start/end', async () => {
     const mockInsert = vi.fn().mockResolvedValue({ data: { id: 'x', summary: 'Bad' } });
-    const service = new GoogleCalendarService(
-      { events: { list: vi.fn(), insert: mockInsert, patch: vi.fn(), delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
-    );
+    const service = new GoogleCalendarService(makeCalendar([], { insert: mockInsert }));
 
     await expect(
       service.createEvent({ title: 'Bad', start: '2026-03-22T10:00:00Z', end: '2026-03-22T10:30:00Z' }),
@@ -415,9 +412,7 @@ describe('GoogleCalendarService.createEvent', () => {
 describe('GoogleCalendarService.updateEvent', () => {
   it('returns a normalized CalendarEvent on success', async () => {
     const mockPatch = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
-    const service = new GoogleCalendarService(
-      { events: { list: vi.fn(), insert: vi.fn(), patch: mockPatch, delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
-    );
+    const service = new GoogleCalendarService(makeCalendar([], { patch: mockPatch }));
 
     const event = await service.updateEvent('new-evt', { title: 'Updated' });
 
@@ -426,9 +421,7 @@ describe('GoogleCalendarService.updateEvent', () => {
 
   it('only sends fields present in updates (partial patch)', async () => {
     const mockPatch = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
-    const service = new GoogleCalendarService(
-      { events: { list: vi.fn(), insert: vi.fn(), patch: mockPatch, delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
-    );
+    const service = new GoogleCalendarService(makeCalendar([], { patch: mockPatch }));
 
     await service.updateEvent('new-evt', { title: 'New title' });
 
@@ -441,9 +434,7 @@ describe('GoogleCalendarService.updateEvent', () => {
 
   it('calls patch with correct calendarId and eventId', async () => {
     const mockPatch = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
-    const service = new GoogleCalendarService(
-      { events: { list: vi.fn(), insert: vi.fn(), patch: mockPatch, delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
-    );
+    const service = new GoogleCalendarService(makeCalendar([], { patch: mockPatch }));
 
     await service.updateEvent('evt-123', { title: 'x' });
 
@@ -452,9 +443,7 @@ describe('GoogleCalendarService.updateEvent', () => {
 
   it('throws when Google returns an event with missing start/end', async () => {
     const mockPatch = vi.fn().mockResolvedValue({ data: { id: 'x', summary: 'Bad' } });
-    const service = new GoogleCalendarService(
-      { events: { list: vi.fn(), insert: vi.fn(), patch: mockPatch, delete: vi.fn() }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
-    );
+    const service = new GoogleCalendarService(makeCalendar([], { patch: mockPatch }));
 
     await expect(service.updateEvent('x', { title: 'Bad' })).rejects.toThrow('updateEvent');
   });
@@ -467,9 +456,7 @@ describe('GoogleCalendarService.updateEvent', () => {
 describe('GoogleCalendarService.deleteEvent', () => {
   it('calls events.delete with correct calendarId and eventId', async () => {
     const mockDelete = vi.fn().mockResolvedValue({});
-    const service = new GoogleCalendarService(
-      { events: { list: vi.fn(), insert: vi.fn(), patch: vi.fn(), delete: mockDelete }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
-    );
+    const service = new GoogleCalendarService(makeCalendar([], { delete: mockDelete }));
 
     await service.deleteEvent('evt-abc');
 
@@ -477,9 +464,7 @@ describe('GoogleCalendarService.deleteEvent', () => {
   });
 
   it('resolves with undefined', async () => {
-    const service = new GoogleCalendarService(
-      { events: { list: vi.fn(), insert: vi.fn(), patch: vi.fn(), delete: vi.fn().mockResolvedValue({}) }, freebusy: { query: vi.fn() } } as unknown as calendar_v3.Calendar,
-    );
+    const service = new GoogleCalendarService(makeCalendar([], { delete: vi.fn().mockResolvedValue({}) }));
 
     const result = await service.deleteEvent('evt-abc');
 
