@@ -28,7 +28,11 @@ export interface CalendarAccessError {
   reason: string;
 }
 
+export type CalendarAccessStatus = 'ok' | 'forbidden' | 'not_found' | 'unknown';
+
 export interface CalendarFreeBusy {
+  accessible: boolean;
+  status: CalendarAccessStatus;
   busy: BusyBlock[];
   errors?: CalendarAccessError[];
 }
@@ -86,7 +90,11 @@ export class GoogleCalendarService {
         const entry = calendars[email];
         const busy = (entry?.busy ?? []).map((b) => ({ start: b.start ?? '', end: b.end ?? '' }));
         const errors = entry?.errors?.map((e) => ({ domain: e.domain ?? '', reason: e.reason ?? '' }));
-        return [email, errors?.length ? { busy, errors } : { busy }];
+        if (errors?.length) {
+          const status = resolveAccessStatus(errors[0].reason);
+          return [email, { accessible: false, status, busy, errors }];
+        }
+        return [email, { accessible: true, status: 'ok' as const, busy }];
       }),
     );
   }
@@ -189,6 +197,12 @@ export function invertBusy(busy: BusyBlock[], start: Date, end: Date): FreeSlot[
   }
 
   return slots;
+}
+
+function resolveAccessStatus(reason: string): CalendarAccessStatus {
+  if (reason === 'notFound') return 'not_found';
+  if (reason === 'authError') return 'forbidden';
+  return 'unknown';
 }
 
 function normalizeEvent(event: calendar_v3.Schema$Event): CalendarEvent | null {
