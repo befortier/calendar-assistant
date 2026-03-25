@@ -204,6 +204,14 @@ describe('dispatchTool: input validation', () => {
     ).rejects.toThrow("expected string[] for 'emails'");
   });
 
+  it('throws when a date string is not valid ISO 8601', async () => {
+    const service = makeService();
+
+    await expect(
+      dispatchTool('get_events', { start: 'not-a-date', end: END }, service),
+    ).rejects.toThrow("invalid ISO 8601 date for 'start'");
+  });
+
   it('throws when create_event is missing title', async () => {
     const service = makeService();
 

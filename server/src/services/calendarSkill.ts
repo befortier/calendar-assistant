@@ -7,6 +7,13 @@ function asString(v: unknown, field: string): string {
   return v;
 }
 
+function asDate(v: unknown, field: string): Date {
+  const s = asString(v, field);
+  const d = new Date(s);
+  if (isNaN(d.getTime())) throw new Error(`dispatchTool: invalid ISO 8601 date for '${field}'`);
+  return d;
+}
+
 function asStringArray(v: unknown, field: string): string[] {
   if (!Array.isArray(v) || !v.every((x) => typeof x === 'string'))
     throw new Error(`dispatchTool: expected string[] for '${field}'`);
@@ -132,16 +139,16 @@ export async function dispatchTool(
 ): Promise<string> {
   switch (name) {
     case 'get_events': {
-      const start = new Date(asString(input.start, 'start'));
-      const end = new Date(asString(input.end, 'end'));
+      const start = asDate(input.start, 'start');
+      const end = asDate(input.end, 'end');
       const events = await service.getEvents(start, end);
       return JSON.stringify(events);
     }
 
     case 'get_freebusy': {
       const emails = asStringArray(input.emails, 'emails');
-      const start = new Date(asString(input.start, 'start'));
-      const end = new Date(asString(input.end, 'end'));
+      const start = asDate(input.start, 'start');
+      const end = asDate(input.end, 'end');
       const result = await service.getFreeBusy(emails, start, end);
       const enriched = Object.fromEntries(
         Object.entries(result).map(([email, data]) => [
