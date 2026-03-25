@@ -2,6 +2,17 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { GoogleCalendarService, CreateEventInput, UpdateEventInput } from './googleCalendar';
 import { invertBusy } from './googleCalendar';
 
+function asString(v: unknown, field: string): string {
+  if (typeof v !== 'string') throw new Error(`dispatchTool: expected string for '${field}', got ${typeof v}`);
+  return v;
+}
+
+function asStringArray(v: unknown, field: string): string[] {
+  if (!Array.isArray(v) || !v.every((x) => typeof x === 'string'))
+    throw new Error(`dispatchTool: expected string[] for '${field}'`);
+  return v as string[];
+}
+
 export const calendarTools: Anthropic.Tool[] = [
   {
     name: 'get_events',
@@ -112,21 +123,26 @@ The event_id MUST come from a prior get_events or create_event result in this co
   },
 ];
 
+export type ToolName = (typeof calendarTools)[number]['name'];
+
 export async function dispatchTool(
-  name: string,
+  name: ToolName,
   input: Record<string, unknown>,
   service: GoogleCalendarService,
 ): Promise<string> {
   switch (name) {
     case 'get_events': {
-      const events = await service.getEvents(new Date(input.start as string), new Date(input.end as string));
+      const start = new Date(asString(input.start, 'start'));
+      const end = new Date(asString(input.end, 'end'));
+      const events = await service.getEvents(start, end);
       return JSON.stringify(events);
     }
 
     case 'get_freebusy': {
-      const start = new Date(input.start as string);
-      const end = new Date(input.end as string);
-      const result = await service.getFreeBusy(input.emails as string[], start, end);
+      const emails = asStringArray(input.emails, 'emails');
+      const start = new Date(asString(input.start, 'start'));
+      const end = new Date(asString(input.end, 'end'));
+      const result = await service.getFreeBusy(emails, start, end);
       const enriched = Object.fromEntries(
         Object.entries(result).map(([email, data]) => [
           email,
@@ -137,18 +153,34 @@ export async function dispatchTool(
     }
 
     case 'create_event': {
-      const event = await service.createEvent(input as CreateEventInput);
+      const createInput: CreateEventInput = {
+        title: asString(input.title, 'title'),
+        start: asString(input.start, 'start'),
+        end: asString(input.end, 'end'),
+        attendees: input.attendees != null ? asStringArray(input.attendees, 'attendees') : undefined,
+        description: input.description != null ? asString(input.description, 'description') : undefined,
+        location: input.location != null ? asString(input.location, 'location') : undefined,
+      };
+      const event = await service.createEvent(createInput);
       return JSON.stringify(event);
     }
 
     case 'update_event': {
-      const { event_id, ...updates } = input as { event_id: string } & UpdateEventInput;
+      const event_id = asString(input.event_id, 'event_id');
+      const updates: UpdateEventInput = {};
+      if (input.title != null) updates.title = asString(input.title, 'title');
+      if (input.start != null) updates.start = asString(input.start, 'start');
+      if (input.end != null) updates.end = asString(input.end, 'end');
+      if (input.attendees != null) updates.attendees = asStringArray(input.attendees, 'attendees');
+      if (input.description != null) updates.description = asString(input.description, 'description');
+      if (input.location != null) updates.location = asString(input.location, 'location');
       const event = await service.updateEvent(event_id, updates);
       return JSON.stringify(event);
     }
 
     case 'delete_event': {
-      await service.deleteEvent(input.event_id as string);
+      const event_id = asString(input.event_id, 'event_id');
+      await service.deleteEvent(event_id);
       return JSON.stringify({ success: true });
     }
 

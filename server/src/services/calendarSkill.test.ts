@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { dispatchTool } from './calendarSkill';
+import { dispatchTool, type ToolName } from './calendarSkill';
 import type { GoogleCalendarService } from './googleCalendar';
 
 const START = '2026-03-22T00:00:00.000Z';
@@ -169,6 +169,54 @@ describe('dispatchTool: unknown tool', () => {
   it('throws for an unrecognised tool name', async () => {
     const service = makeService();
 
-    await expect(dispatchTool('nonexistent', {}, service)).rejects.toThrow('Unknown tool: nonexistent');
+    await expect(dispatchTool('nonexistent' as ToolName, {}, service)).rejects.toThrow(
+      'Unknown tool: nonexistent',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// input validation
+// ---------------------------------------------------------------------------
+
+describe('dispatchTool: input validation', () => {
+  it('throws when a required string field is missing', async () => {
+    const service = makeService();
+
+    await expect(dispatchTool('get_events', { start: START }, service)).rejects.toThrow(
+      "expected string for 'end'",
+    );
+  });
+
+  it('throws when a required string field is a number', async () => {
+    const service = makeService();
+
+    await expect(
+      dispatchTool('get_events', { start: START, end: 12345 }, service),
+    ).rejects.toThrow("expected string for 'end'");
+  });
+
+  it('throws when emails is not a string array', async () => {
+    const service = makeService();
+
+    await expect(
+      dispatchTool('get_freebusy', { emails: 'not-an-array', start: START, end: END }, service),
+    ).rejects.toThrow("expected string[] for 'emails'");
+  });
+
+  it('throws when create_event is missing title', async () => {
+    const service = makeService();
+
+    await expect(
+      dispatchTool('create_event', { start: START, end: END }, service),
+    ).rejects.toThrow("expected string for 'title'");
+  });
+
+  it('throws when delete_event is missing event_id', async () => {
+    const service = makeService();
+
+    await expect(dispatchTool('delete_event', {}, service)).rejects.toThrow(
+      "expected string for 'event_id'",
+    );
   });
 });
