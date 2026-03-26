@@ -49,11 +49,21 @@ function buildConfirmText(items: ChatItem[], proposalId: string, accepted: boole
   const proposal = items.find(
     (i): i is ProposalItem => i.type === 'event_proposal' && i.id === proposalId,
   );
-  if (proposal) {
-    const time = new Date(proposal.event.start).toLocaleString();
-    return `Yes, create "${proposal.event.title}" at ${time}.`;
+  if (!proposal) return 'Yes, go ahead.';
+
+  const { action, event } = proposal;
+  if (action === 'delete') {
+    return event.title && event.title !== 'Untitled'
+      ? `Yes, delete "${event.title}".`
+      : 'Yes, delete it.';
   }
-  return 'Yes, go ahead.';
+
+  const verb = action === 'update' ? 'update' : 'create';
+  if (event.start) {
+    const time = new Date(event.start).toLocaleString();
+    return `Yes, ${verb} "${event.title}" at ${time}.`;
+  }
+  return `Yes, ${verb} "${event.title}".`;
 }
 
 interface EventHandlerDeps {
