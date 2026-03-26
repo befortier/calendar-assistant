@@ -158,4 +158,92 @@ describe('ClaudeService.runAgentLoop', () => {
     expect(lastMessage.content[0]).toMatchObject({ tool_use_id: 'call_a' });
     expect(lastMessage.content[1]).toMatchObject({ tool_use_id: 'call_b' });
   });
+
+  it('returns error message when max iterations exceeded', async () => {
+    const toolUseResponse = {
+      stop_reason: 'tool_use',
+      content: [
+        { type: 'tool_use', id: 'call_n', name: 'get_events', input: { start: '2026-03-25T00:00:00Z', end: '2026-03-25T23:59:59Z' } },
+      ],
+    };
+    const client = mockAnthropicClient(toolUseResponse);
+    const calService = mockCalendarService();
+    (calService.getEvents as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    const service = new ClaudeService(client);
+    const result = await service.runAgentLoop(
+      [{ role: 'user', content: 'Do something complex' }],
+      calService,
+      CTX,
+    );
+
+    expect(result).toContain('too many tool calls');
+    expect(client.messages.create).toHaveBeenCalledTimes(10);
+  });
+
+  it('feeds tool dispatch errors back to Claude as is_error', async () => {
+    const toolUseResponse = {
+      stop_reason: 'tool_use',
+      content: [
+        { type: 'tool_use', id: 'call_err', name: 'get_events', input: { start: 'not-a-date', end: '2026-03-25T23:59:59Z' } },
+      ],
+    };
+    const finalResponse = {
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: 'Sorry, I had trouble reading your calendar.' }],
+    };
+    const client = mockAnthropicClient(toolUseResponse);
+    (client.messages.create as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(toolUseResponse)
+      .mockResolvedValueOnce(finalResponse);
+
+    const calService = mockCalendarService();
+    (calService.getEvents as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Invalid date'));
+
+    const service = new ClaudeService(client);
+    const result = await service.runAgentLoop(
+      [{ role: 'user', content: 'Show my events' }],
+      calService,
+      CTX,
+    );
+
+    expect(result).toBe('Sorry, I had trouble reading your calendar.');
+    // Verify error was passed back
+    const secondCall = (client.messages.create as ReturnType<typeof vi.fn>).mock.calls[1][0];
+    const lastMessage = secondCall.messages[secondCall.messages.length - 1];
+    expect(lastMessage.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ is_error: true, tool_use_id: 'call_err' }),
+      ]),
+    );
+  });
+
+  it('throws on max_context_window_exceeded', async () => {
+    const client = mockAnthropicClient({
+      stop_reason: 'max_context_window_exceeded',
+      content: [],
+    });
+    const service = new ClaudeService(client);
+
+    await expect(
+      service.runAgentLoop(
+        [{ role: 'user', content: 'Long conversation' }],
+        mockCalendarService(),
+        CTX,
+      ),
+    ).rejects.toThrow('Context window exceeded');
+  });
+
+  it('does not mutate the input messages array', async () => {
+    const client = mockAnthropicClient({
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: 'Hello' }],
+    });
+    const service = new ClaudeService(client);
+    const original = [{ role: 'user' as const, content: 'Hi' }];
+
+    await service.runAgentLoop(original, mockCalendarService(), CTX);
+
+    expect(original).toHaveLength(1);
+  });
 });

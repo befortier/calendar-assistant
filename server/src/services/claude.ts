@@ -57,6 +57,10 @@ export class ClaudeService {
         return textBlock?.type === 'text' ? textBlock.text : '';
       }
 
+      if ((response.stop_reason as string) === 'max_context_window_exceeded') {
+        throw new Error('Context window exceeded — conversation is too long');
+      }
+
       const toolUseBlocks = response.content.filter(
         (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
       );
