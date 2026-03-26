@@ -55,9 +55,11 @@ describe('EventCard', () => {
     expect(screen.queryByText('Create')).not.toBeInTheDocument();
   });
 
-  it('shows declined badge instead of buttons', () => {
+  it('hides buttons and badge when declined', () => {
     render(<EventCard action="create" event={EVENT} status="declined" onAccept={vi.fn()} onDecline={vi.fn()} />);
-    expect(screen.getByText('Declined')).toBeInTheDocument();
+    expect(screen.queryByText('Create')).not.toBeInTheDocument();
+    expect(screen.queryByText('Created')).not.toBeInTheDocument();
+    expect(screen.getByText('Team Standup')).toBeInTheDocument();
   });
 
   it('hides location when not present', () => {

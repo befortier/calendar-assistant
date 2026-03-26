@@ -53,32 +53,29 @@ export default function EventCard({ action, event, status, onAccept, onDecline }
         <p className="mt-1 text-xs text-gray-600">{event.location}</p>
       )}
 
-      <div className="mt-3">
-        {status === 'pending' ? (
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onAccept}
-              className={`rounded px-3 py-1 text-xs font-medium text-white ${
-                action === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
-              }`}
-            >
-              {config.accept}
-            </button>
-            <button
-              type="button"
-              onClick={onDecline}
-              className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100"
-            >
-              {action === 'delete' ? 'Cancel' : 'Decline'}
-            </button>
-          </div>
-        ) : (
-          <span className={`text-xs font-medium ${status === 'declined' ? 'text-gray-400' : config.badgeColor}`}>
-            {status === 'declined' ? 'Declined' : config.badge}
-          </span>
-        )}
-      </div>
+      {status === 'pending' && (
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={onAccept}
+            className={`rounded px-3 py-1 text-xs font-medium text-white ${
+              action === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
+            }`}
+          >
+            {config.accept}
+          </button>
+          <button
+            type="button"
+            onClick={onDecline}
+            className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100"
+          >
+            {action === 'delete' ? 'Cancel' : 'Decline'}
+          </button>
+        </div>
+      )}
+      {status === 'accepted' && (
+        <p className={`mt-2 text-xs font-medium ${config.badgeColor}`}>{config.badge}</p>
+      )}
     </div>
   );
 }
