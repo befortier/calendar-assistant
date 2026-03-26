@@ -32,7 +32,7 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
       return;
     }
 
-    const userId = (req as typeof req & { userId?: string }).userId;
+    const userId = req.userId;
     const user = userId ? deps.users.getUserById(userId) : null;
     if (!user) {
       res.status(401).json({ error: 'User not found' });

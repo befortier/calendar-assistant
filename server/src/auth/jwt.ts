@@ -14,7 +14,7 @@ export function verifyJwt(token: string, secret: string): string {
 }
 
 export function jwtMiddleware(secret: string) {
-  return (req: Request & { userId?: string }, res: Response, next: NextFunction): void => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     const auth = req.headers.authorization;
     if (!auth?.startsWith('Bearer ')) {
       res.status(401).json({ error: 'Missing or invalid Authorization header' });

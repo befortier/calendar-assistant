@@ -33,7 +33,7 @@ function makeApp(deps: ChatRouterDeps) {
   app.use(express.json());
   // Simulate JWT middleware setting userId
   app.use((req, _res, next) => {
-    (req as express.Request & { userId?: string }).userId = 'user-1';
+    req.userId = 'user-1';
     next();
   });
   app.use('/chat', createChatRouter(deps));

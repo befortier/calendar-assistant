@@ -43,7 +43,7 @@ describe('jwtMiddleware', () => {
 
   it('calls next() and attaches userId for valid Bearer token', () => {
     const token = signJwt('user-abc', SECRET);
-    const req = makeReq(`Bearer ${token}`) as Request & { userId?: string };
+    const req = makeReq(`Bearer ${token}`);
     const res = makeRes() as unknown as Response;
     const next = vi.fn() as unknown as NextFunction;
     middleware(req, res, next);
