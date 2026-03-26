@@ -5,6 +5,7 @@ import { authenticatedApi } from '../lib/apiInstance';
 import { useAuthStore } from '../stores/auth';
 
 interface Message {
+  id: string;
   role: 'user' | 'assistant';
   content: string;
 }
@@ -14,6 +15,8 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
   const logout = useAuthStore((s) => s.logout);
 
   useEffect(() => {
@@ -22,18 +25,21 @@ export default function ChatPage() {
 
   const handleSend = useCallback(
     async (text: string) => {
-      const userMessage: Message = { role: 'user', content: text };
-      const updatedMessages = [...messages, userMessage];
+      const userMessage: Message = { id: crypto.randomUUID(), role: 'user', content: text };
+      const updatedMessages = [...messagesRef.current, userMessage];
       setMessages(updatedMessages);
       setLoading(true);
       setError(null);
 
       try {
         const data = await authenticatedApi.post<{ reply: string }>('/chat', {
-          messages: updatedMessages,
+          messages: updatedMessages.map(({ role, content }) => ({ role, content })),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         });
-        setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }]);
+        setMessages((prev) => [
+          ...prev,
+          { id: crypto.randomUUID(), role: 'assistant', content: data.reply },
+        ]);
       } catch (err) {
         if (err instanceof Error && err.message.includes('Not authenticated')) {
           logout();
@@ -44,7 +50,7 @@ export default function ChatPage() {
         setLoading(false);
       }
     },
-    [messages, logout],
+    [logout],
   );
 
   return (
@@ -52,6 +58,7 @@ export default function ChatPage() {
       <header className="flex items-center justify-between border-b bg-white px-4 py-3">
         <h1 className="text-lg font-semibold text-gray-900">Calendar Assistant</h1>
         <button
+          type="button"
           onClick={logout}
           className="text-sm text-gray-500 transition hover:text-gray-700"
         >
@@ -60,22 +67,16 @@ export default function ChatPage() {
       </header>
 
       <main className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="mx-auto max-w-2xl space-y-3">
+        <div className="mx-auto max-w-2xl space-y-3" aria-live="polite" aria-atomic="false">
           {messages.length === 0 && !loading && (
             <p className="py-20 text-center text-sm text-gray-400">
               Ask me anything about your calendar.
             </p>
           )}
-          {messages.map((msg, i) => (
-            <ChatBubble key={i} role={msg.role} content={msg.content} />
+          {messages.map((msg) => (
+            <ChatBubble key={msg.id} role={msg.role} content={msg.content} />
           ))}
-          {loading && (
-            <div className="flex justify-start">
-              <div className="rounded-2xl bg-gray-100 px-4 py-2.5 text-sm text-gray-400">
-                Thinking…
-              </div>
-            </div>
-          )}
+          {loading && <ChatBubble role="assistant" content="Thinking…" />}
           <div ref={bottomRef} />
         </div>
       </main>
