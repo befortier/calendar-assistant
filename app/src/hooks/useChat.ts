@@ -157,8 +157,28 @@ export function useChat() {
   }, [sendStream]);
 
   const respondToProposal = useCallback(async (proposalId: string, accepted: boolean) => {
-    const confirmText = buildConfirmText(itemsRef.current, proposalId, accepted);
-    setItems((prev) => resolveProposal(prev, proposalId, accepted));
+    if (!accepted) {
+      // Decline is local-only: remove the card
+      setItems((prev) => prev.filter((i) => !(i.type === 'event_proposal' && i.id === proposalId)));
+
+      // Check if this was the last pending option — if so, notify agent
+      const remaining = itemsRef.current.filter(
+        (i) => i.type === 'event_proposal' && i.status === 'pending' && i.id !== proposalId,
+      );
+      if (remaining.length === 0) {
+        const declineItem: MessageItem = {
+          type: 'message', id: crypto.randomUUID(), role: 'user', content: 'No, cancel that.',
+        };
+        const allItems = [...itemsRef.current.filter((i) => !(i.type === 'event_proposal' && i.id === proposalId)), declineItem];
+        setItems(allItems);
+        await sendStream(allItems);
+      }
+      return;
+    }
+
+    // Accept: resolve group and send confirmation
+    const confirmText = buildConfirmText(itemsRef.current, proposalId, true);
+    setItems((prev) => resolveProposal(prev, proposalId, true));
     const confirmItem: MessageItem = {
       type: 'message', id: crypto.randomUUID(), role: 'user', content: confirmText,
     };

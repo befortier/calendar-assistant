@@ -88,9 +88,9 @@ export class ClaudeService {
         continue;
       }
 
-      // Check for intercepted tools — emit proposals and stop
+      // Check for intercepted tools — emit proposals and stop (unless user already confirmed)
       const intercepted = toolUseBlocks.find((b) => isInterceptedTool(b.name));
-      if (intercepted) {
+      if (intercepted && !this.isConfirmed(inputMessages)) {
         if (intercepted.name === 'propose_options') {
           this.emitOptions(intercepted, emit);
         } else {
@@ -131,6 +131,12 @@ export class ClaudeService {
 
     emit({ event: 'error', data: { message: 'Too many tool calls — please try a simpler question.' } });
     emit({ event: 'done', data: {} });
+  }
+
+  private isConfirmed(inputMessages: Anthropic.MessageParam[]): boolean {
+    const last = inputMessages[inputMessages.length - 1];
+    if (!last || last.role !== 'user' || typeof last.content !== 'string') return false;
+    return last.content.startsWith('Yes,') || last.content.startsWith('No,');
   }
 
   private emitWriteProposal(block: Anthropic.ToolUseBlock, emit: SSEEmitter): void {
