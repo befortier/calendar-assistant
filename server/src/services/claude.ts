@@ -30,7 +30,7 @@ When displaying events or times to the user, use their timezone (${ctx.timezone}
 }
 
 const MAX_ITERATIONS = 10;
-const MODEL = 'claude-sonnet-4-20250514';
+const MODEL = 'claude-sonnet-4-6';
 
 export class ClaudeService {
   constructor(private readonly client: Anthropic) {}
@@ -46,7 +46,7 @@ export class ClaudeService {
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       const response = await this.client.messages.create({
         model: MODEL,
-        max_tokens: 1024,
+        max_tokens: 4096,
         system: systemPrompt,
         tools: calendarTools,
         messages,
