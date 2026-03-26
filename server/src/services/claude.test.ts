@@ -45,3 +45,21 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toMatch(/create_event|update_event|delete_event/);
   });
 });
+
+describe('ClaudeService.runAgentLoop', () => {
+  it('returns text response when Claude ends turn without tool calls', async () => {
+    const client = mockAnthropicClient({
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: 'You have 3 meetings today.' }],
+    });
+    const service = new ClaudeService(client);
+
+    const result = await service.runAgentLoop(
+      [{ role: 'user', content: 'What do I have today?' }],
+      mockCalendarService(),
+      CTX,
+    );
+
+    expect(result).toBe('You have 3 meetings today.');
+  });
+});

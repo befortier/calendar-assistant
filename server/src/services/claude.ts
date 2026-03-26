@@ -28,3 +28,39 @@ For get_events and get_freebusy: call these freely whenever useful — they are 
 
 When displaying events or times to the user, use their timezone (${ctx.timezone}).`;
 }
+
+const MAX_ITERATIONS = 10;
+const MODEL = 'claude-sonnet-4-20250514';
+
+export class ClaudeService {
+  constructor(private readonly client: Anthropic) {}
+
+  async runAgentLoop(
+    inputMessages: Anthropic.MessageParam[],
+    calendarService: GoogleCalendarService,
+    ctx: UserContext,
+  ): Promise<string> {
+    const systemPrompt = buildSystemPrompt(ctx);
+    const messages = [...inputMessages];
+
+    for (let i = 0; i < MAX_ITERATIONS; i++) {
+      const response = await this.client.messages.create({
+        model: MODEL,
+        max_tokens: 1024,
+        system: systemPrompt,
+        tools: calendarTools,
+        messages,
+      });
+
+      if (response.stop_reason === 'end_turn') {
+        const textBlock = response.content.find((b) => b.type === 'text');
+        return textBlock?.type === 'text' ? textBlock.text : '';
+      }
+
+      // Tool use handling will be added in the next task
+      throw new Error(`Unhandled stop_reason: ${response.stop_reason}`);
+    }
+
+    return 'I ran into an issue processing your request — too many tool calls. Please try a simpler question.';
+  }
+}
