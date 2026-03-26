@@ -14,7 +14,7 @@ export type SSEEvent =
   | { event: 'tool_call'; data: { tool: string } }
   | { event: 'tool_result'; data: { tool: string; summary: string; error?: boolean } }
   | { event: 'delta'; data: { text: string } }
-  | { event: 'event_proposal'; data: { id: string; action: 'create' | 'update' | 'delete'; event: CalendarEvent } }
+  | { event: 'event_proposal'; data: { id: string; action: 'create' | 'update' | 'delete'; event: CalendarEvent; group?: string } }
   | { event: 'done'; data: Record<string, never> }
   | { event: 'error'; data: { message: string } };
 

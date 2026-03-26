@@ -5,16 +5,16 @@ export type SSEEvent =
   | { event: 'tool_call'; data: { tool: string } }
   | { event: 'tool_result'; data: { tool: string; summary: string; error?: boolean } }
   | { event: 'delta'; data: { text: string } }
-  | { event: 'event_proposal'; data: { id: string; action: 'create' | 'update' | 'delete'; event: CalendarEvent } }
+  | { event: 'event_proposal'; data: { id: string; action: 'create' | 'update' | 'delete'; event: CalendarEvent; group?: string } }
   | { event: 'done'; data: Record<string, never> }
   | { event: 'error'; data: { message: string } };
 
 export type SSEEmitter = (event: SSEEvent) => void;
 
-const WRITE_TOOLS = new Set(['create_event', 'update_event', 'delete_event']);
+const INTERCEPTED_TOOLS = new Set(['create_event', 'update_event', 'delete_event', 'propose_options']);
 
-export function isWriteTool(name: string): boolean {
-  return WRITE_TOOLS.has(name);
+export function isInterceptedTool(name: string): boolean {
+  return INTERCEPTED_TOOLS.has(name);
 }
 
 export function formatSSE(event: SSEEvent): string {

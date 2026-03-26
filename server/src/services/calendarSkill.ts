@@ -128,6 +128,39 @@ The event_id MUST come from a prior get_events or create_event result in this co
     },
     strict: true,
   },
+  {
+    name: 'propose_options',
+    description: `Presents the user with a set of time slot options to choose from. Use this INSTEAD of listing times in text.
+When the user asks to schedule something and you've found available slots, call this tool with the event details and options.
+Each option has the same title, attendees, etc. but different start/end times.
+The user will pick one option in the UI. After they pick, call create_event with the chosen details.
+If the user says "any work" or similar, just pick the best one and call create_event directly.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Event title (same for all options)' },
+        attendees: { type: 'array', items: { type: 'string' }, description: 'Attendee emails (same for all options)' },
+        description: { type: 'string', description: 'Event description (optional)' },
+        location: { type: 'string', description: 'Event location (optional)' },
+        options: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              start: { type: 'string', description: 'Start datetime (ISO 8601)' },
+              end: { type: 'string', description: 'End datetime (ISO 8601)' },
+            },
+            required: ['start', 'end'],
+            additionalProperties: false,
+          },
+          description: 'Time slot options (2-5 recommended)',
+        },
+      },
+      required: ['title', 'options'],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
 ];
 
 export type ToolName = (typeof calendarTools)[number]['name'];

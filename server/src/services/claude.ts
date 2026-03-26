@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { GoogleCalendarService, CalendarEvent } from './googleCalendar';
 import { calendarTools, dispatchTool, type ToolName } from './calendarSkill';
-import { type SSEEmitter, isWriteTool } from './sse';
+import { type SSEEmitter, isInterceptedTool } from './sse';
 
 export interface UserContext {
   email: string;
@@ -18,12 +18,15 @@ User timezone: ${ctx.timezone}
 
 You have access to tools that read and modify the user's Google Calendar.
 
-IMPORTANT — write-operation rules (you MUST follow these):
-- NEVER call create_event, update_event, or delete_event without first presenting the full details to the user and receiving their explicit confirmation.
-- "Sounds good", "sure", or "yes" in response to your proposal counts as confirmation.
-- Ambiguous requests like "schedule something" do NOT count — you must propose specific details and wait for approval.
-- If the user asks you to "just do it" or "go ahead" without you having proposed details first, propose the details and ask for confirmation.
-- For delete_event: always confirm which specific event will be deleted by name and time before proceeding.
+Scheduling workflow:
+1. When the user asks to schedule something, use get_events/get_freebusy to find availability.
+2. Use propose_options to show time slots as interactive cards the user can pick from. Do NOT list times in plain text.
+3. After the user picks an option (or says "any work", "first one", etc.), call create_event immediately. Affirmative replies ("yes", "sure", "sounds good", "go ahead", "any work", "pick one") count as confirmation — do not re-check.
+
+Write-operation rules:
+- For create_event: if the user has expressed clear intent and you have the details, proceed. You do NOT need explicit "yes" for every field — reasonable defaults are fine.
+- For update_event and delete_event: confirm which specific event before proceeding.
+- The event_id for update/delete MUST come from a prior get_events or create_event result. Never invent IDs.
 
 For get_events and get_freebusy: call these freely whenever useful — they are read-only.
 
@@ -85,26 +88,14 @@ export class ClaudeService {
         continue;
       }
 
-      // Check for write tools — emit proposal and stop
-      const writeBlock = toolUseBlocks.find((b) => isWriteTool(b.name));
-      if (writeBlock) {
-        const input = writeBlock.input as Record<string, unknown>;
-        const action = WRITE_TOOL_ACTION[writeBlock.name];
-        const event: CalendarEvent = {
-          id: (input.event_id as string) ?? '',
-          title: (input.title as string) ?? 'Untitled',
-          start: (input.start as string) ?? '',
-          end: (input.end as string) ?? '',
-          allDay: false,
-          attendees: input.attendees as string[] | undefined,
-          location: input.location as string | undefined,
-          description: input.description as string | undefined,
-        };
-
-        emit({
-          event: 'event_proposal',
-          data: { id: writeBlock.id, action, event },
-        });
+      // Check for intercepted tools — emit proposals and stop
+      const intercepted = toolUseBlocks.find((b) => isInterceptedTool(b.name));
+      if (intercepted) {
+        if (intercepted.name === 'propose_options') {
+          this.emitOptions(intercepted, emit);
+        } else {
+          this.emitWriteProposal(intercepted, emit);
+        }
         emit({ event: 'done', data: {} });
         return;
       }
@@ -140,5 +131,58 @@ export class ClaudeService {
 
     emit({ event: 'error', data: { message: 'Too many tool calls — please try a simpler question.' } });
     emit({ event: 'done', data: {} });
+  }
+
+  private emitWriteProposal(block: Anthropic.ToolUseBlock, emit: SSEEmitter): void {
+    const input = block.input as Record<string, unknown>;
+    const action = WRITE_TOOL_ACTION[block.name];
+    emit({
+      event: 'event_proposal',
+      data: {
+        id: block.id,
+        action,
+        event: {
+          id: (input.event_id as string) ?? '',
+          title: (input.title as string) ?? 'Untitled',
+          start: (input.start as string) ?? '',
+          end: (input.end as string) ?? '',
+          allDay: false,
+          attendees: input.attendees as string[] | undefined,
+          location: input.location as string | undefined,
+          description: input.description as string | undefined,
+        },
+      },
+    });
+  }
+
+  private emitOptions(block: Anthropic.ToolUseBlock, emit: SSEEmitter): void {
+    const input = block.input as Record<string, unknown>;
+    const title = (input.title as string) ?? 'Untitled';
+    const attendees = input.attendees as string[] | undefined;
+    const description = input.description as string | undefined;
+    const location = input.location as string | undefined;
+    const options = input.options as { start: string; end: string }[];
+    const group = block.id;
+
+    for (let i = 0; i < options.length; i++) {
+      emit({
+        event: 'event_proposal',
+        data: {
+          id: `${group}_${i}`,
+          action: 'create',
+          group,
+          event: {
+            id: '',
+            title,
+            start: options[i].start,
+            end: options[i].end,
+            allDay: false,
+            attendees,
+            description,
+            location,
+          },
+        },
+      });
+    }
   }
 }
