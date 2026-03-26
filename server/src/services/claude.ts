@@ -57,8 +57,40 @@ export class ClaudeService {
         return textBlock?.type === 'text' ? textBlock.text : '';
       }
 
-      // Tool use handling will be added in the next task
-      throw new Error(`Unhandled stop_reason: ${response.stop_reason}`);
+      const toolUseBlocks = response.content.filter(
+        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
+      );
+
+      if (toolUseBlocks.length === 0) {
+        // stop_reason is max_tokens or pause_turn but no tool calls — continue
+        messages.push({ role: 'assistant', content: response.content });
+        messages.push({ role: 'user', content: 'Please continue.' });
+        continue;
+      }
+
+      // Dispatch all tool calls
+      const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
+        toolUseBlocks.map(async (block) => {
+          try {
+            const result = await dispatchTool(
+              block.name as ToolName,
+              block.input as Record<string, unknown>,
+              calendarService,
+            );
+            return { type: 'tool_result' as const, tool_use_id: block.id, content: result };
+          } catch (err) {
+            return {
+              type: 'tool_result' as const,
+              tool_use_id: block.id,
+              content: `Error: ${err instanceof Error ? err.message : String(err)}`,
+              is_error: true,
+            };
+          }
+        }),
+      );
+
+      messages.push({ role: 'assistant', content: response.content });
+      messages.push({ role: 'user', content: toolResults });
     }
 
     return 'I ran into an issue processing your request — too many tool calls. Please try a simpler question.';
