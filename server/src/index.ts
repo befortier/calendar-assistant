@@ -1,10 +1,14 @@
+import Anthropic from '@anthropic-ai/sdk';
 import express from 'express';
 import cors from 'cors';
 import { config } from './config';
 import { Dependencies } from './dependencies';
 import { jwtMiddleware } from './auth/jwt';
 import { createAuthRouter } from './routes/auth';
+import { createChatRouter } from './routes/chat';
 import { GoogleTokenExchanger, realGoogleAuthFactory } from './auth/google';
+import { ClaudeService } from './services/claude';
+import { createGoogleCalendarService } from './services/googleCalendar';
 
 const deps = new Dependencies(config);
 deps.migrations.migrate();
@@ -31,9 +35,19 @@ app.get('/health', (_req, res) => {
 });
 
 const auth = jwtMiddleware(config.JWT_SECRET);
+const claudeService = new ClaudeService(new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }));
 
 app.use('/calendar', auth);
-app.use('/chat', auth);
+app.use(
+  '/chat',
+  auth,
+  createChatRouter({
+    users: deps.client,
+    claudeService,
+    calendarServiceFactory: (accessToken, refreshToken) =>
+      createGoogleCalendarService(accessToken, refreshToken, config),
+  }),
+);
 app.use('/skills', auth);
 
 app.listen(config.PORT, () => {
