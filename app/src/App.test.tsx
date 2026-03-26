@@ -7,10 +7,14 @@ vi.mock('@react-oauth/google', () => ({
   useGoogleLogin: () => vi.fn(),
 }));
 
-// Mock authenticated API client used by ChatPage
+// Mock API clients used by ChatPage and LoginPage
 vi.mock('./lib/apiInstance', () => ({
   authenticatedApi: { post: vi.fn() },
   unauthenticatedApi: { post: vi.fn() },
+}));
+
+vi.mock('./lib/streamChat', () => ({
+  streamChat: vi.fn(),
 }));
 
 // Mock the env check — requireEnv runs at import time
