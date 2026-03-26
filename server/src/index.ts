@@ -5,6 +5,7 @@ import { config } from './config';
 import { Dependencies } from './dependencies';
 import { jwtMiddleware } from './auth/jwt';
 import { createAuthRouter } from './routes/auth';
+import { createCalendarRouter } from './routes/calendar';
 import { createChatRouter } from './routes/chat';
 import { GoogleTokenExchanger, realGoogleAuthFactory } from './auth/google';
 import { ClaudeService } from './services/claude';
@@ -37,15 +38,21 @@ app.get('/health', (_req, res) => {
 const auth = jwtMiddleware(config.JWT_SECRET);
 const claudeService = new ClaudeService(new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }));
 
-app.use('/calendar', auth);
+const calendarServiceFactory = (accessToken: string, refreshToken: string) =>
+  createGoogleCalendarService(accessToken, refreshToken, config);
+
+app.use(
+  '/calendar',
+  auth,
+  createCalendarRouter({ users: deps.client, calendarServiceFactory }),
+);
 app.use(
   '/chat',
   auth,
   createChatRouter({
     users: deps.client,
     claudeService,
-    calendarServiceFactory: (accessToken, refreshToken) =>
-      createGoogleCalendarService(accessToken, refreshToken, config),
+    calendarServiceFactory,
   }),
 );
 app.use('/skills', auth);
