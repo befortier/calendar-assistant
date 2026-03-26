@@ -11,10 +11,25 @@ export interface HttpTransport {
 /** An interceptor that can inspect/modify the request config before it is sent. */
 export type RequestInterceptor = (config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig;
 
-export function createAxiosTransport(baseURL: string, interceptors: RequestInterceptor[] = []): HttpTransport {
+/** Called when an API response returns a 401 — the session is invalid. */
+export type UnauthorizedHandler = () => void;
+
+export function createAxiosTransport(
+  baseURL: string,
+  interceptors: RequestInterceptor[] = [],
+  onUnauthorized?: UnauthorizedHandler,
+): HttpTransport {
   const instance = axios.create({ baseURL });
   for (const interceptor of interceptors) {
     instance.interceptors.request.use(interceptor);
+  }
+  if (onUnauthorized) {
+    instance.interceptors.response.use(undefined, (error) => {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        onUnauthorized();
+      }
+      return Promise.reject(error);
+    });
   }
   return instance;
 }
