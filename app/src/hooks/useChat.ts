@@ -26,6 +26,65 @@ function extractMessages(items: ChatItem[]): { role: string; content: string }[]
     .map(({ role, content }) => ({ role, content }));
 }
 
+interface EventHandlerDeps {
+  setItems: React.Dispatch<React.SetStateAction<ChatItem[]>>;
+  setStatus: React.Dispatch<React.SetStateAction<string | null>>;
+  setError: React.Dispatch<React.SetStateAction<string | null>>;
+  setLoading: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+function createEventHandler(deps: EventHandlerDeps) {
+  return (event: SSEEvent) => {
+    switch (event.event) {
+      case 'status':
+        deps.setStatus('Thinking…');
+        deps.setItems((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.type === 'message' && last.role === 'assistant' && last.content.trim()) {
+            return [...prev, { type: 'message', id: crypto.randomUUID(), role: 'assistant', content: '' }];
+          }
+          return prev;
+        });
+        break;
+      case 'tool_call':
+        deps.setStatus(`Using ${event.data.tool.replace(/_/g, ' ')}…`);
+        break;
+      case 'tool_result':
+        deps.setStatus(null);
+        break;
+      case 'delta':
+        deps.setItems((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last.type === 'message' && last.role === 'assistant') {
+            updated[updated.length - 1] = { ...last, content: last.content + event.data.text };
+          }
+          return updated;
+        });
+        break;
+      case 'event_proposal':
+        deps.setItems((prev) => [
+          ...prev,
+          {
+            type: 'event_proposal',
+            id: event.data.id,
+            action: event.data.action,
+            event: event.data.event,
+            status: 'pending' as ProposalStatus,
+          },
+        ]);
+        break;
+      case 'error':
+        deps.setError(event.data.message);
+        break;
+      case 'done':
+        deps.setLoading(false);
+        deps.setStatus(null);
+        break;
+    }
+  };
+}
+
 export function useChat() {
   const [items, setItems] = useState<ChatItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -39,48 +98,10 @@ export function useChat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [items, status]);
 
-  const handleEvent = useCallback((event: SSEEvent) => {
-    switch (event.event) {
-      case 'status':
-        setStatus('Thinking…');
-        break;
-      case 'tool_call':
-        setStatus(`Using ${event.data.tool.replace(/_/g, ' ')}…`);
-        break;
-      case 'tool_result':
-        setStatus(null);
-        break;
-      case 'delta':
-        setItems((prev) => {
-          const updated = [...prev];
-          const last = updated[updated.length - 1];
-          if (last.type === 'message' && last.role === 'assistant') {
-            updated[updated.length - 1] = { ...last, content: last.content + event.data.text };
-          }
-          return updated;
-        });
-        break;
-      case 'event_proposal':
-        setItems((prev) => [
-          ...prev,
-          {
-            type: 'event_proposal',
-            id: event.data.id,
-            action: event.data.action,
-            event: event.data.event,
-            status: 'pending' as ProposalStatus,
-          },
-        ]);
-        break;
-      case 'error':
-        setError(event.data.message);
-        break;
-      case 'done':
-        setLoading(false);
-        setStatus(null);
-        break;
-    }
-  }, []);
+  const handleEvent = useCallback(
+    createEventHandler({ setItems, setStatus, setError, setLoading }),
+    [],
+  );
 
   const sendStream = useCallback(async (allItems: ChatItem[]) => {
     setItems((prev) => [...prev, { type: 'message', id: crypto.randomUUID(), role: 'assistant', content: '' }]);
@@ -89,11 +110,7 @@ export function useChat() {
     setStatus(null);
 
     try {
-      await streamChat(
-        extractMessages(allItems),
-        Intl.DateTimeFormat().resolvedOptions().timeZone,
-        handleEvent,
-      );
+      await streamChat(extractMessages(allItems), Intl.DateTimeFormat().resolvedOptions().timeZone, handleEvent);
     } catch {
       setError('Connection lost. Please try again.');
       setLoading(false);
