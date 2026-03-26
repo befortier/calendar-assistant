@@ -40,17 +40,13 @@ export default function ChatPage() {
           ...prev,
           { id: crypto.randomUUID(), role: 'assistant', content: data.reply },
         ]);
-      } catch (err) {
-        if (err instanceof Error && err.message.includes('Not authenticated')) {
-          logout();
-          return;
-        }
+      } catch {
         setError('Failed to send message. Please try again.');
       } finally {
         setLoading(false);
       }
     },
-    [logout],
+    [],
   );
 
   return (

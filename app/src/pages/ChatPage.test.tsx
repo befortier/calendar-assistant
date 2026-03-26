@@ -106,18 +106,6 @@ describe('ChatPage', () => {
     expect(mockLogout).toHaveBeenCalled();
   });
 
-  it('calls logout on auth error', async () => {
-    mockPost.mockRejectedValue(new Error('Not authenticated — no token available'));
-    render(<ChatPage />);
-
-    await userEvent.type(screen.getByLabelText('Chat message'), 'Hello');
-    await userEvent.click(screen.getByRole('button', { name: /send/i }));
-
-    await waitFor(() => {
-      expect(mockLogout).toHaveBeenCalled();
-    });
-  });
-
   it('includes timezone in request', async () => {
     mockPost.mockResolvedValue({ reply: 'ok' });
     render(<ChatPage />);
