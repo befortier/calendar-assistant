@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { GoogleCalendarService, CalendarEvent } from './googleCalendar';
+import type { GoogleCalendarService } from './googleCalendar';
 import { calendarTools, dispatchTool, type ToolName } from './calendarSkill';
 import { type SSEEmitter, isInterceptedTool } from './sse';
 
