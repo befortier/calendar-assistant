@@ -4,7 +4,12 @@ import { useAuthStore } from './stores/auth';
 import LoginPage from './pages/LoginPage';
 import ChatPage from './pages/ChatPage';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
+function requireEnv(key: string, value: string | undefined): string {
+  if (!value) throw new Error(`${key} is not set`);
+  return value;
+}
+
+const GOOGLE_CLIENT_ID = requireEnv('VITE_GOOGLE_CLIENT_ID', import.meta.env.VITE_GOOGLE_CLIENT_ID);
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);

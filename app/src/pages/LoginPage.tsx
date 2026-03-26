@@ -1,7 +1,7 @@
 import { useGoogleLogin } from '@react-oauth/google';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../lib/api';
+import { unauthenticatedApi } from '../lib/apiInstance';
 import { useAuthStore } from '../stores/auth';
 
 export default function LoginPage() {
@@ -16,7 +16,7 @@ export default function LoginPage() {
       setLoading(true);
       setError(null);
       try {
-        const { data } = await api.post<{ token: string }>('/auth/google', { code });
+        const data = await unauthenticatedApi.post<{ token: string }>('/auth/google', { code });
         login(data.token);
         navigate('/chat', { replace: true });
       } catch {
@@ -65,9 +65,11 @@ export default function LoginPage() {
           {loading ? 'Signing in…' : 'Continue with Google'}
         </button>
 
-        <p className="text-center text-sm text-red-600" aria-live="polite">
-          {error ?? ''}
-        </p>
+        {error && (
+          <p className="text-center text-sm text-red-600" role="alert">
+            {error}
+          </p>
+        )}
       </div>
     </div>
   );
