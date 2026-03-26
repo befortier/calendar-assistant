@@ -58,7 +58,7 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
       );
       res.json({ reply });
     } catch (err) {
-      console.error('Chat error:', err instanceof Error ? err.message : String(err));
+      console.error('Chat error:', err);
       res.status(500).json({ error: 'Failed to process chat request' });
     }
   });
