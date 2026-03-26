@@ -33,7 +33,12 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
     }
 
     const userId = req.userId;
-    const user = userId ? deps.users.getUserById(userId) : null;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const user = deps.users.getUserById(userId);
     if (!user) {
       res.status(401).json({ error: 'User not found' });
       return;

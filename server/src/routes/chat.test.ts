@@ -108,6 +108,20 @@ describe('POST /chat', () => {
     expect(res.status).toBe(400);
   });
 
+  it('returns 401 when userId is missing from request', async () => {
+    const noAuthApp = express();
+    noAuthApp.use(express.json());
+    // No middleware setting userId
+    noAuthApp.use('/chat', createChatRouter(deps));
+
+    const res = await request(noAuthApp)
+      .post('/chat')
+      .send({ messages: [{ role: 'user', content: 'Hi' }] });
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('Unauthorized');
+  });
+
   it('returns 401 when user is not found in DB', async () => {
     const notFoundDeps = makeDeps({
       users: { upsertUser: vi.fn(), getUserById: vi.fn().mockReturnValue(null) },
