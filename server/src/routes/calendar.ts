@@ -30,18 +30,18 @@ export function createCalendarRouter(deps: CalendarRouterDeps): Router {
       return;
     }
 
-    const user = deps.users.getUserById(userId);
-    if (!user) {
-      res.status(401).json({ error: 'User not found' });
-      return;
-    }
-
-    if (!user.refreshToken) {
-      res.status(401).json({ error: 'Google session expired — please reauthorize' });
-      return;
-    }
-
     try {
+      const user = deps.users.getUserById(userId);
+      if (!user) {
+        res.status(401).json({ error: 'User not found' });
+        return;
+      }
+
+      if (!user.refreshToken) {
+        res.status(401).json({ error: 'Google session expired — please reauthorize' });
+        return;
+      }
+
       const calendarService = deps.calendarServiceFactory(user.accessToken, user.refreshToken);
       const events = await calendarService.getEvents(startDate, endDate);
       res.json({ events });
