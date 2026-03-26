@@ -1,11 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { GoogleCalendarService } from './googleCalendar';
+import type { GoogleCalendarService, CalendarEvent } from './googleCalendar';
 import { calendarTools, dispatchTool, type ToolName } from './calendarSkill';
+import { type SSEEmitter, isWriteTool } from './sse';
 
 export interface UserContext {
   email: string;
   timezone: string;
-  now?: Date; // injectable for testing, defaults to new Date()
+  now?: Date;
 }
 
 export function buildSystemPrompt(ctx: UserContext): string {
@@ -32,21 +33,28 @@ When displaying events or times to the user, use their timezone (${ctx.timezone}
 const MAX_ITERATIONS = 10;
 const MODEL = 'claude-sonnet-4-6';
 
+const WRITE_TOOL_ACTION: Record<string, 'create' | 'update' | 'delete'> = {
+  create_event: 'create',
+  update_event: 'update',
+  delete_event: 'delete',
+};
+
 export class ClaudeService {
   constructor(private readonly client: Anthropic) {}
 
-  async runAgentLoop(
+  async streamAgentLoop(
     inputMessages: Anthropic.MessageParam[],
     calendarService: GoogleCalendarService,
     ctx: UserContext,
-  ): Promise<string> {
+    emit: SSEEmitter,
+  ): Promise<void> {
     const systemPrompt = buildSystemPrompt(ctx);
     const messages = [...inputMessages];
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
-      console.log(`[agent] iteration ${i + 1}/${MAX_ITERATIONS} — sending ${messages.length} messages to Claude`);
+      emit({ event: 'status', data: { type: 'thinking' } });
 
-      const response = await this.client.messages.create({
+      const stream = this.client.messages.stream({
         model: MODEL,
         max_tokens: 4096,
         system: systemPrompt,
@@ -54,17 +62,17 @@ export class ClaudeService {
         messages,
       });
 
-      console.log(`[agent] stop_reason=${response.stop_reason}, content blocks=${response.content.length}, usage=${JSON.stringify(response.usage)}`);
-
-      if (response.stop_reason === 'end_turn') {
-        const textBlock = response.content.find((b) => b.type === 'text');
-        const reply = textBlock?.type === 'text' ? textBlock.text : '';
-        console.log(`[agent] done — reply length=${reply.length}`);
-        return reply;
+      for await (const event of stream) {
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          emit({ event: 'delta', data: { text: event.delta.text } });
+        }
       }
 
-      if ((response.stop_reason as string) === 'max_context_window_exceeded') {
-        throw new Error('Context window exceeded — conversation is too long');
+      const response = await stream.finalMessage();
+
+      if (response.stop_reason === 'end_turn') {
+        emit({ event: 'done', data: {} });
+        return;
       }
 
       const toolUseBlocks = response.content.filter(
@@ -72,29 +80,50 @@ export class ClaudeService {
       );
 
       if (toolUseBlocks.length === 0) {
-        console.log(`[agent] no tool calls, stop_reason=${response.stop_reason} — continuing`);
         messages.push({ role: 'assistant', content: response.content });
         messages.push({ role: 'user', content: 'Please continue.' });
         continue;
       }
 
-      // Dispatch all tool calls
-      console.log(`[agent] dispatching ${toolUseBlocks.length} tool call(s): ${toolUseBlocks.map((b) => b.name).join(', ')}`);
+      // Check for write tools — emit proposal and stop
+      const writeBlock = toolUseBlocks.find((b) => isWriteTool(b.name));
+      if (writeBlock) {
+        const input = writeBlock.input as Record<string, unknown>;
+        const action = WRITE_TOOL_ACTION[writeBlock.name];
+        const event: CalendarEvent = {
+          id: (input.event_id as string) ?? '',
+          title: (input.title as string) ?? 'Untitled',
+          start: (input.start as string) ?? '',
+          end: (input.end as string) ?? '',
+          allDay: false,
+          attendees: input.attendees as string[] | undefined,
+          location: input.location as string | undefined,
+          description: input.description as string | undefined,
+        };
 
+        emit({
+          event: 'event_proposal',
+          data: { id: writeBlock.id, action, event },
+        });
+        emit({ event: 'done', data: {} });
+        return;
+      }
+
+      // Dispatch read tools
       const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
         toolUseBlocks.map(async (block) => {
-          console.log(`[agent] tool=${block.name} input=${JSON.stringify(block.input)}`);
+          emit({ event: 'tool_call', data: { tool: block.name } });
           try {
             const result = await dispatchTool(
               block.name as ToolName,
               block.input as Record<string, unknown>,
               calendarService,
             );
-            console.log(`[agent] tool=${block.name} result length=${result.length}`);
+            emit({ event: 'tool_result', data: { tool: block.name, summary: `Completed` } });
             return { type: 'tool_result' as const, tool_use_id: block.id, content: result };
           } catch (err) {
             const errMsg = err instanceof Error ? err.message : String(err);
-            console.error(`[agent] tool=${block.name} ERROR: ${errMsg}`);
+            emit({ event: 'tool_result', data: { tool: block.name, summary: errMsg, error: true } });
             return {
               type: 'tool_result' as const,
               tool_use_id: block.id,
@@ -109,7 +138,7 @@ export class ClaudeService {
       messages.push({ role: 'user', content: toolResults });
     }
 
-    console.warn(`[agent] hit MAX_ITERATIONS (${MAX_ITERATIONS})`);
-    return 'I ran into an issue processing your request — too many tool calls. Please try a simpler question.';
+    emit({ event: 'error', data: { message: 'Too many tool calls — please try a simpler question.' } });
+    emit({ event: 'done', data: {} });
   }
 }

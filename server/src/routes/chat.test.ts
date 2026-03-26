@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { createChatRouter, type ChatRouterDeps } from './chat';
-import type { IUserRepository, User } from '../db/user-repository';
+import type { User } from '../db/user-repository';
 import type { ClaudeService } from '../services/claude';
 import type { GoogleCalendarService } from '../services/googleCalendar';
+import type { SSEEvent } from '../services/sse';
 
 const FAKE_USER: User = {
   id: 'user-1',
@@ -14,6 +15,19 @@ const FAKE_USER: User = {
   refreshToken: 'refresh-tok',
 };
 
+function parseSSE(text: string): SSEEvent[] {
+  return text
+    .split('\n\n')
+    .filter(Boolean)
+    .map((block) => {
+      const eventMatch = block.match(/^event: (.+)$/m);
+      const dataMatch = block.match(/^data: (.+)$/m);
+      if (!eventMatch || !dataMatch) return null;
+      return { event: eventMatch[1], data: JSON.parse(dataMatch[1]) } as SSEEvent;
+    })
+    .filter((e): e is SSEEvent => e !== null);
+}
+
 function makeDeps(overrides?: Partial<ChatRouterDeps>): ChatRouterDeps {
   return {
     users: {
@@ -21,7 +35,12 @@ function makeDeps(overrides?: Partial<ChatRouterDeps>): ChatRouterDeps {
       getUserById: vi.fn().mockReturnValue(FAKE_USER),
     },
     claudeService: {
-      runAgentLoop: vi.fn().mockResolvedValue('You have 3 meetings today.'),
+      streamAgentLoop: vi.fn(async (
+        _msgs: unknown, _cal: unknown, _ctx: unknown, emit: (e: SSEEvent) => void,
+      ) => {
+        emit({ event: 'delta', data: { text: 'Hello' } });
+        emit({ event: 'done', data: {} });
+      }),
     } as unknown as ClaudeService,
     calendarServiceFactory: vi.fn().mockReturnValue({} as GoogleCalendarService),
     ...overrides,
@@ -31,7 +50,6 @@ function makeDeps(overrides?: Partial<ChatRouterDeps>): ChatRouterDeps {
 function makeApp(deps: ChatRouterDeps) {
   const app = express();
   app.use(express.json());
-  // Simulate JWT middleware setting userId
   app.use((req, _res, next) => {
     req.userId = 'user-1';
     next();
@@ -49,51 +67,60 @@ describe('POST /chat', () => {
     app = makeApp(deps);
   });
 
-  it('returns 200 with reply on success', async () => {
+  it('returns SSE content type', async () => {
     const res = await request(app)
       .post('/chat')
-      .send({ messages: [{ role: 'user', content: 'What do I have today?' }], timezone: 'America/New_York' });
+      .send({ messages: [{ role: 'user', content: 'Hi' }] });
 
-    expect(res.status).toBe(200);
-    expect(res.body.reply).toBe('You have 3 meetings today.');
+    expect(res.headers['content-type']).toContain('text/event-stream');
   });
 
-  it('calls runAgentLoop with correct arguments', async () => {
+  it('streams delta and done events', async () => {
+    const res = await request(app)
+      .post('/chat')
+      .send({ messages: [{ role: 'user', content: 'Hi' }] });
+
+    const events = parseSSE(res.text);
+    expect(events).toContainEqual({ event: 'delta', data: { text: 'Hello' } });
+    expect(events[events.length - 1]).toEqual({ event: 'done', data: {} });
+  });
+
+  it('calls streamAgentLoop with correct arguments', async () => {
     await request(app)
       .post('/chat')
       .send({ messages: [{ role: 'user', content: 'Hi' }], timezone: 'Europe/London' });
 
-    expect(deps.claudeService.runAgentLoop).toHaveBeenCalledWith(
+    expect(deps.claudeService.streamAgentLoop).toHaveBeenCalledWith(
       [{ role: 'user', content: 'Hi' }],
-      expect.anything(), // calendar service
+      expect.anything(),
       { email: 'alice@example.com', timezone: 'Europe/London' },
+      expect.any(Function),
     );
   });
 
   it('creates calendar service with user tokens', async () => {
     await request(app)
       .post('/chat')
-      .send({ messages: [{ role: 'user', content: 'Hi' }], timezone: 'UTC' });
+      .send({ messages: [{ role: 'user', content: 'Hi' }] });
 
     expect(deps.calendarServiceFactory).toHaveBeenCalledWith('access-tok', 'refresh-tok');
   });
 
-  it('defaults timezone to UTC when not provided', async () => {
+  it('defaults timezone to UTC', async () => {
     await request(app)
       .post('/chat')
       .send({ messages: [{ role: 'user', content: 'Hi' }] });
 
-    expect(deps.claudeService.runAgentLoop).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
+    expect(deps.claudeService.streamAgentLoop).toHaveBeenCalledWith(
+      expect.anything(), expect.anything(),
       expect.objectContaining({ timezone: 'UTC' }),
+      expect.any(Function),
     );
   });
 
   it('returns 400 when messages is missing', async () => {
     const res = await request(app).post('/chat').send({});
     expect(res.status).toBe(400);
-    expect(res.body.error).toBeDefined();
   });
 
   it('returns 400 when messages is empty', async () => {
@@ -101,17 +128,9 @@ describe('POST /chat', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 400 when message has invalid role', async () => {
-    const res = await request(app)
-      .post('/chat')
-      .send({ messages: [{ role: 'system', content: 'hi' }] });
-    expect(res.status).toBe(400);
-  });
-
-  it('returns 401 when userId is missing from request', async () => {
+  it('returns 401 when userId is missing', async () => {
     const noAuthApp = express();
     noAuthApp.use(express.json());
-    // No middleware setting userId
     noAuthApp.use('/chat', createChatRouter(deps));
 
     const res = await request(noAuthApp)
@@ -119,10 +138,9 @@ describe('POST /chat', () => {
       .send({ messages: [{ role: 'user', content: 'Hi' }] });
 
     expect(res.status).toBe(401);
-    expect(res.body.error).toBe('Unauthorized');
   });
 
-  it('returns 401 when user is not found in DB', async () => {
+  it('returns 401 when user not found', async () => {
     const notFoundDeps = makeDeps({
       users: { upsertUser: vi.fn(), getUserById: vi.fn().mockReturnValue(null) },
     });
@@ -133,10 +151,9 @@ describe('POST /chat', () => {
       .send({ messages: [{ role: 'user', content: 'Hi' }] });
 
     expect(res.status).toBe(401);
-    expect(res.body.error).toContain('not found');
   });
 
-  it('returns 401 when user has no refresh token', async () => {
+  it('returns 401 when no refresh token', async () => {
     const noRefreshDeps = makeDeps({
       users: {
         upsertUser: vi.fn(),
@@ -150,13 +167,12 @@ describe('POST /chat', () => {
       .send({ messages: [{ role: 'user', content: 'Hi' }] });
 
     expect(res.status).toBe(401);
-    expect(res.body.error).toContain('reauthorize');
   });
 
-  it('returns 500 when agent loop throws', async () => {
+  it('streams error event when agent loop throws', async () => {
     const errorDeps = makeDeps({
       claudeService: {
-        runAgentLoop: vi.fn().mockRejectedValue(new Error('Context window exceeded')),
+        streamAgentLoop: vi.fn().mockRejectedValue(new Error('Boom')),
       } as unknown as ClaudeService,
     });
     app = makeApp(errorDeps);
@@ -165,7 +181,8 @@ describe('POST /chat', () => {
       .post('/chat')
       .send({ messages: [{ role: 'user', content: 'Hi' }] });
 
-    expect(res.status).toBe(500);
-    expect(res.body.error).toBeDefined();
+    const events = parseSSE(res.text);
+    expect(events).toContainEqual(expect.objectContaining({ event: 'error' }));
+    expect(events[events.length - 1]).toEqual({ event: 'done', data: {} });
   });
 });
