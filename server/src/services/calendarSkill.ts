@@ -117,11 +117,15 @@ Returns the updated event.`,
     name: 'delete_event',
     description: `Deletes an event from the authenticated user's calendar. This action is irreversible.
 Only call this after the user has explicitly confirmed they want to delete the event.
-The event_id MUST come from a prior get_events or create_event result in this conversation. Never invent or guess an event ID.`,
+The event_id MUST come from a prior get_events or create_event result in this conversation. Never invent or guess an event ID.
+Always include the event title, start, and end so the user can see exactly what will be deleted.`,
     input_schema: {
       type: 'object',
       properties: {
         event_id: { type: 'string', description: 'ID from a prior get_events or create_event result' },
+        title: { type: 'string', description: 'Event title (for display in confirmation card)' },
+        start: { type: 'string', description: 'Event start datetime ISO 8601 (for display)' },
+        end: { type: 'string', description: 'Event end datetime ISO 8601 (for display)' },
       },
       required: ['event_id'],
       additionalProperties: false,
