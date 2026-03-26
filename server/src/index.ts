@@ -23,7 +23,7 @@ const googleExchanger = new GoogleTokenExchanger(
   {
     clientId: config.GOOGLE_CLIENT_ID,
     clientSecret: config.GOOGLE_CLIENT_SECRET,
-    redirectUri: `${config.ALLOWED_ORIGIN}/auth/callback`,
+    redirectUri: 'postmessage',
   },
   realGoogleAuthFactory,
 );
