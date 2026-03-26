@@ -20,7 +20,7 @@ You have access to tools that read and modify the user's Google Calendar.
 
 Scheduling workflow:
 1. When the user asks to schedule something, use get_events/get_freebusy to find availability.
-2. Use propose_options to show time slots as interactive cards the user can pick from. Do NOT list times in plain text.
+2. To propose time options, call create_event MULTIPLE TIMES in a single response — one call per option. Each will appear as an interactive card the user can pick from. Do NOT list times in plain text.
 3. After the user picks an option (or says "any work", "first one", etc.), call create_event immediately. Affirmative replies ("yes", "sure", "sounds good", "go ahead", "any work", "pick one") count as confirmation — do not re-check.
 
 Write-operation rules:
@@ -88,43 +88,11 @@ export class ClaudeService {
         continue;
       }
 
-      // Check for intercepted tools — emit proposals and stop (unless user already confirmed)
-      const intercepted = toolUseBlocks.find((b) => isInterceptedTool(b.name));
-      if (intercepted && !this.isConfirmed(inputMessages)) {
-        if (intercepted.name === 'propose_options') {
-          this.emitOptions(intercepted, emit);
-        } else {
-          this.emitWriteProposal(intercepted, emit);
-        }
-        emit({ event: 'done', data: {} });
-        return;
-      }
+      // Check for write tools — emit proposals and stop (unless user already confirmed)
+      if (this.handleWriteProposals(toolUseBlocks, inputMessages, emit)) return;
 
-      // Dispatch read tools
-      const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
-        toolUseBlocks.map(async (block) => {
-          emit({ event: 'tool_call', data: { tool: block.name } });
-          try {
-            const result = await dispatchTool(
-              block.name as ToolName,
-              block.input as Record<string, unknown>,
-              calendarService,
-            );
-            emit({ event: 'tool_result', data: { tool: block.name, summary: `Completed` } });
-            return { type: 'tool_result' as const, tool_use_id: block.id, content: result };
-          } catch (err) {
-            const errMsg = err instanceof Error ? err.message : String(err);
-            emit({ event: 'tool_result', data: { tool: block.name, summary: errMsg, error: true } });
-            return {
-              type: 'tool_result' as const,
-              tool_use_id: block.id,
-              content: `Error: ${errMsg}`,
-              is_error: true,
-            };
-          }
-        }),
-      );
-
+      // Dispatch tools and feed results back into the loop
+      const toolResults = await this.dispatchTools(toolUseBlocks, calendarService, emit);
       messages.push({ role: 'assistant', content: response.content });
       messages.push({ role: 'user', content: toolResults });
     }
@@ -133,13 +101,58 @@ export class ClaudeService {
     emit({ event: 'done', data: {} });
   }
 
+  private handleWriteProposals(
+    toolUseBlocks: Anthropic.ToolUseBlock[],
+    inputMessages: Anthropic.MessageParam[],
+    emit: SSEEmitter,
+  ): boolean {
+    const writeBlocks = toolUseBlocks.filter((b) => isInterceptedTool(b.name));
+    console.log(`[agent] tools: ${toolUseBlocks.map((b) => b.name).join(', ')}, confirmed: ${this.isConfirmed(inputMessages)}`);
+    if (writeBlocks.length === 0 || this.isConfirmed(inputMessages)) return false;
+
+    const group = writeBlocks.length > 1 ? crypto.randomUUID() : undefined;
+    for (const block of writeBlocks) {
+      this.emitWriteProposal(block, emit, group);
+    }
+    emit({ event: 'done', data: {} });
+    return true;
+  }
+
+  private async dispatchTools(
+    blocks: Anthropic.ToolUseBlock[],
+    calendarService: GoogleCalendarService,
+    emit: SSEEmitter,
+  ): Promise<Anthropic.ToolResultBlockParam[]> {
+    return Promise.all(
+      blocks.map(async (block) => {
+        emit({ event: 'tool_call', data: { tool: block.name } });
+        console.log(`[agent] dispatching ${block.name}`);
+        try {
+          const result = await dispatchTool(
+            block.name as ToolName,
+            block.input as Record<string, unknown>,
+            calendarService,
+          );
+          console.log(`[agent] ${block.name} succeeded`);
+          emit({ event: 'tool_result', data: { tool: block.name, summary: 'Completed' } });
+          return { type: 'tool_result' as const, tool_use_id: block.id, content: result };
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          console.error(`[agent] ${block.name} FAILED: ${errMsg}`);
+          emit({ event: 'tool_result', data: { tool: block.name, summary: errMsg, error: true } });
+          return { type: 'tool_result' as const, tool_use_id: block.id, content: `Error: ${errMsg}`, is_error: true };
+        }
+      }),
+    );
+  }
+
   private isConfirmed(inputMessages: Anthropic.MessageParam[]): boolean {
     const last = inputMessages[inputMessages.length - 1];
     if (!last || last.role !== 'user' || typeof last.content !== 'string') return false;
     return last.content.startsWith('Yes,') || last.content.startsWith('No,');
   }
 
-  private emitWriteProposal(block: Anthropic.ToolUseBlock, emit: SSEEmitter): void {
+  private emitWriteProposal(block: Anthropic.ToolUseBlock, emit: SSEEmitter, group?: string): void {
     const input = block.input as Record<string, unknown>;
     const action = WRITE_TOOL_ACTION[block.name];
     emit({
@@ -147,6 +160,7 @@ export class ClaudeService {
       data: {
         id: block.id,
         action,
+        group,
         event: {
           id: (input.event_id as string) ?? '',
           title: (input.title as string) ?? 'Untitled',
@@ -159,36 +173,5 @@ export class ClaudeService {
         },
       },
     });
-  }
-
-  private emitOptions(block: Anthropic.ToolUseBlock, emit: SSEEmitter): void {
-    const input = block.input as Record<string, unknown>;
-    const title = (input.title as string) ?? 'Untitled';
-    const attendees = input.attendees as string[] | undefined;
-    const description = input.description as string | undefined;
-    const location = input.location as string | undefined;
-    const options = input.options as { start: string; end: string }[];
-    const group = block.id;
-
-    for (let i = 0; i < options.length; i++) {
-      emit({
-        event: 'event_proposal',
-        data: {
-          id: `${group}_${i}`,
-          action: 'create',
-          group,
-          event: {
-            id: '',
-            title,
-            start: options[i].start,
-            end: options[i].end,
-            allDay: false,
-            attendees,
-            description,
-            location,
-          },
-        },
-      });
-    }
   }
 }

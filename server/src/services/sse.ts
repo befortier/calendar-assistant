@@ -11,7 +11,7 @@ export type SSEEvent =
 
 export type SSEEmitter = (event: SSEEvent) => void;
 
-const INTERCEPTED_TOOLS = new Set(['create_event', 'update_event', 'delete_event', 'propose_options']);
+const INTERCEPTED_TOOLS = new Set(['create_event', 'update_event', 'delete_event']);
 
 export function isInterceptedTool(name: string): boolean {
   return INTERCEPTED_TOOLS.has(name);
