@@ -42,6 +42,29 @@ const WRITE_TOOL_ACTION: Record<string, 'create' | 'update' | 'delete'> = {
   delete_event: 'delete',
 };
 
+/** Extract events from tool result JSON and add to cache. */
+function cacheEventsFromResults(
+  results: Anthropic.ToolResultBlockParam[],
+  cache: Map<string, Record<string, unknown>>,
+): void {
+  for (const tr of results) {
+    if (tr.is_error || typeof tr.content !== 'string') continue;
+    try {
+      const parsed = JSON.parse(tr.content);
+      const events = Array.isArray(parsed) ? parsed : [parsed];
+      for (const evt of events) {
+        if (evt.id) cache.set(evt.id, evt);
+      }
+    } catch { /* not JSON */ }
+  }
+}
+
+function isConfirmed(inputMessages: Anthropic.MessageParam[]): boolean {
+  const last = inputMessages[inputMessages.length - 1];
+  if (!last || last.role !== 'user' || typeof last.content !== 'string') return false;
+  return last.content.startsWith('Yes,') || last.content.startsWith('No,');
+}
+
 export class ClaudeService {
   constructor(private readonly client: Anthropic) {}
 
@@ -53,25 +76,11 @@ export class ClaudeService {
   ): Promise<void> {
     const systemPrompt = buildSystemPrompt(ctx);
     const messages = [...inputMessages];
+    const knownEvents = new Map<string, Record<string, unknown>>();
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       emit({ event: 'status', data: { type: 'thinking' } });
-
-      const stream = this.client.messages.stream({
-        model: MODEL,
-        max_tokens: 4096,
-        system: systemPrompt,
-        tools: calendarTools,
-        messages,
-      });
-
-      for await (const event of stream) {
-        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-          emit({ event: 'delta', data: { text: event.delta.text } });
-        }
-      }
-
-      const response = await stream.finalMessage();
+      const response = await this.streamResponse(systemPrompt, messages, emit);
 
       if (response.stop_reason === 'end_turn') {
         emit({ event: 'done', data: {} });
@@ -88,11 +97,10 @@ export class ClaudeService {
         continue;
       }
 
-      // Check for write tools — emit proposals and stop (unless user already confirmed)
-      if (this.handleWriteProposals(toolUseBlocks, inputMessages, emit)) return;
+      if (this.emitProposalsIfNeeded(toolUseBlocks, inputMessages, knownEvents, emit)) return;
 
-      // Dispatch tools and feed results back into the loop
       const toolResults = await this.dispatchTools(toolUseBlocks, calendarService, emit);
+      cacheEventsFromResults(toolResults, knownEvents);
       messages.push({ role: 'assistant', content: response.content });
       messages.push({ role: 'user', content: toolResults });
     }
@@ -101,18 +109,41 @@ export class ClaudeService {
     emit({ event: 'done', data: {} });
   }
 
-  private handleWriteProposals(
+  private async streamResponse(
+    systemPrompt: string,
+    messages: Anthropic.MessageParam[],
+    emit: SSEEmitter,
+  ): Promise<Anthropic.Message> {
+    const stream = this.client.messages.stream({
+      model: MODEL,
+      max_tokens: 4096,
+      system: systemPrompt,
+      tools: calendarTools,
+      messages,
+    });
+
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        emit({ event: 'delta', data: { text: event.delta.text } });
+      }
+    }
+
+    return stream.finalMessage();
+  }
+
+  private emitProposalsIfNeeded(
     toolUseBlocks: Anthropic.ToolUseBlock[],
     inputMessages: Anthropic.MessageParam[],
+    knownEvents: Map<string, Record<string, unknown>>,
     emit: SSEEmitter,
   ): boolean {
     const writeBlocks = toolUseBlocks.filter((b) => isInterceptedTool(b.name));
-    console.log(`[agent] tools: ${toolUseBlocks.map((b) => b.name).join(', ')}, confirmed: ${this.isConfirmed(inputMessages)}`);
-    if (writeBlocks.length === 0 || this.isConfirmed(inputMessages)) return false;
+    console.log(`[agent] tools: ${toolUseBlocks.map((b) => b.name).join(', ')}, confirmed: ${isConfirmed(inputMessages)}`);
+    if (writeBlocks.length === 0 || isConfirmed(inputMessages)) return false;
 
     const group = writeBlocks.length > 1 ? crypto.randomUUID() : undefined;
     for (const block of writeBlocks) {
-      this.emitWriteProposal(block, emit, group);
+      this.emitWriteProposal(block, emit, group, knownEvents);
     }
     emit({ event: 'done', data: {} });
     return true;
@@ -146,15 +177,20 @@ export class ClaudeService {
     );
   }
 
-  private isConfirmed(inputMessages: Anthropic.MessageParam[]): boolean {
-    const last = inputMessages[inputMessages.length - 1];
-    if (!last || last.role !== 'user' || typeof last.content !== 'string') return false;
-    return last.content.startsWith('Yes,') || last.content.startsWith('No,');
-  }
-
-  private emitWriteProposal(block: Anthropic.ToolUseBlock, emit: SSEEmitter, group?: string): void {
+  private emitWriteProposal(
+    block: Anthropic.ToolUseBlock,
+    emit: SSEEmitter,
+    group?: string,
+    knownEvents?: Map<string, Record<string, unknown>>,
+  ): void {
     const input = block.input as Record<string, unknown>;
     const action = WRITE_TOOL_ACTION[block.name];
+    const eventId = (input.event_id as string) ?? '';
+
+    // For update/delete, merge tool input on top of known event data
+    const base = knownEvents?.get(eventId) ?? {};
+    const merged = { ...base, ...input };
+
     emit({
       event: 'event_proposal',
       data: {
@@ -162,14 +198,14 @@ export class ClaudeService {
         action,
         group,
         event: {
-          id: (input.event_id as string) ?? '',
-          title: (input.title as string) ?? 'Untitled',
-          start: (input.start as string) ?? '',
-          end: (input.end as string) ?? '',
+          id: eventId,
+          title: (merged.title as string) ?? 'Untitled',
+          start: (merged.start as string) ?? '',
+          end: (merged.end as string) ?? '',
           allDay: false,
-          attendees: input.attendees as string[] | undefined,
-          location: input.location as string | undefined,
-          description: input.description as string | undefined,
+          attendees: merged.attendees as string[] | undefined,
+          location: merged.location as string | undefined,
+          description: merged.description as string | undefined,
         },
       },
     });
