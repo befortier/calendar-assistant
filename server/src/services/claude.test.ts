@@ -115,13 +115,13 @@ describe('ClaudeService.streamAgentLoop', () => {
     expect(streamFn).toHaveBeenCalledTimes(2);
   });
 
-  it('emits event_proposal for write tools and stops', async () => {
+  it('emits event_proposal for propose_event and stops', async () => {
     const streamFn = vi.fn().mockReturnValue(mockStream([], {
       stop_reason: 'tool_use',
       content: [
         {
-          type: 'tool_use', id: 'call_w', name: 'create_event',
-          input: { title: 'Standup', start: '2026-03-26T09:00:00Z', end: '2026-03-26T09:30:00Z', attendees: ['bob@example.com'] },
+          type: 'tool_use', id: 'call_p', name: 'propose_event',
+          input: { id: '', title: 'Standup', start: '2026-03-26T09:00:00Z', end: '2026-03-26T09:30:00Z', attendees: ['bob@example.com'] },
         },
       ],
     }));
@@ -131,7 +131,7 @@ describe('ClaudeService.streamAgentLoop', () => {
     const service = new ClaudeService(mockAnthropicClient(streamFn));
 
     await service.streamAgentLoop(
-      [{ role: 'user', content: 'Create a standup' }],
+      [{ role: 'user', content: 'Schedule a standup' }],
       calService,
       CTX,
       emit,
@@ -140,41 +140,71 @@ describe('ClaudeService.streamAgentLoop', () => {
     const proposal = events.find((e) => e.event === 'event_proposal');
     expect(proposal).toBeDefined();
     expect(proposal!.data).toMatchObject({
-      id: 'call_w',
+      id: 'call_p',
       action: 'create',
       event: { title: 'Standup', attendees: ['bob@example.com'] },
     });
     expect(events[events.length - 1]).toEqual({ event: 'done', data: {} });
-    // Write tool should NOT be dispatched
     expect(calService.createEvent).not.toHaveBeenCalled();
     expect(streamFn).toHaveBeenCalledTimes(1);
   });
 
-  it('emits event_proposal for delete tools', async () => {
+  it('dispatches create_event directly (not intercepted)', async () => {
+    const streamFn = vi.fn()
+      .mockReturnValueOnce(mockStream([], {
+        stop_reason: 'tool_use',
+        content: [
+          {
+            type: 'tool_use', id: 'call_c', name: 'create_event',
+            input: { id: '', title: 'Standup', start: '2026-03-26T09:00:00Z', end: '2026-03-26T09:30:00Z' },
+          },
+        ],
+      }))
+      .mockReturnValueOnce(mockStream([], {
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: 'Created!' }],
+      }));
+
+    const calService = mockCalendarService();
+    (calService.createEvent as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'new-1', title: 'Standup' });
+    const { events, emit } = collectEmit();
+    const service = new ClaudeService(mockAnthropicClient(streamFn));
+
+    await service.streamAgentLoop(
+      [{ role: 'user', content: 'Yes, create it' }],
+      calService,
+      CTX,
+      emit,
+    );
+
+    expect(calService.createEvent).toHaveBeenCalled();
+    expect(events.find((e) => e.event === 'event_proposal')).toBeUndefined();
+  });
+
+  it('groups multiple propose_event calls', async () => {
     const streamFn = vi.fn().mockReturnValue(mockStream([], {
       stop_reason: 'tool_use',
       content: [
-        { type: 'tool_use', id: 'call_d', name: 'delete_event', input: { event_id: 'evt-123' } },
+        { type: 'tool_use', id: 'p1', name: 'propose_event', input: { id: '', title: 'Sync', start: '2026-03-26T09:00:00Z', end: '2026-03-26T09:30:00Z' } },
+        { type: 'tool_use', id: 'p2', name: 'propose_event', input: { id: '', title: 'Sync', start: '2026-03-26T10:00:00Z', end: '2026-03-26T10:30:00Z' } },
       ],
     }));
 
     const { events, emit } = collectEmit();
-    const service = new ClaudeService(mockAnthropicClient(vi.fn().mockReturnValue(
-      mockStream([], {
-        stop_reason: 'tool_use',
-        content: [{ type: 'tool_use', id: 'call_d', name: 'delete_event', input: { event_id: 'evt-123' } }],
-      }),
-    )));
+    const service = new ClaudeService(mockAnthropicClient(streamFn));
 
     await service.streamAgentLoop(
-      [{ role: 'user', content: 'Delete that meeting' }],
+      [{ role: 'user', content: 'Find me a time' }],
       mockCalendarService(),
       CTX,
       emit,
     );
 
-    const proposal = events.find((e) => e.event === 'event_proposal');
-    expect(proposal!.data).toMatchObject({ action: 'delete', event: { id: 'evt-123' } });
+    const proposals = events.filter((e) => e.event === 'event_proposal');
+    expect(proposals).toHaveLength(2);
+    // Both should share a group
+    expect(proposals[0].data.group).toBeDefined();
+    expect(proposals[0].data.group).toBe(proposals[1].data.group);
   });
 
   it('emits tool_result with error on dispatch failure', async () => {

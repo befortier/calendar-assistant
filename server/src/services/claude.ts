@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { GoogleCalendarService } from './googleCalendar';
 import { calendarTools, dispatchTool, type ToolName } from './calendarSkill';
-import { type SSEEmitter, isInterceptedTool } from './sse';
+import { type SSEEmitter, isProposalTool } from './sse';
 
 export interface UserContext {
   email: string;
@@ -20,50 +20,26 @@ You have access to tools that read and modify the user's Google Calendar.
 
 Scheduling workflow:
 1. When the user asks to schedule something, use get_events/get_freebusy to find availability.
-2. To propose time options, call create_event MULTIPLE TIMES in a single response — one call per option. Each will appear as an interactive card the user can pick from. Do NOT list times in plain text.
-3. After the user picks an option (or says "any work", "first one", etc.), call create_event immediately. Affirmative replies ("yes", "sure", "sounds good", "go ahead", "any work", "pick one") count as confirmation — do not re-check.
+2. Call propose_event to show time options as interactive cards. Call it MULTIPLE TIMES in one response for multiple options. Do NOT list times in plain text.
+3. After the user picks an option (or says "any work", "first one", etc.), call create_event immediately. Affirmative replies count as confirmation — do not re-check.
 
-Write-operation rules:
-- For create_event: if the user has expressed clear intent and you have the details, proceed. You do NOT need explicit "yes" for every field — reasonable defaults are fine.
-- For update_event and delete_event: confirm which specific event before proceeding.
-- The event_id for update/delete MUST come from a prior get_events or create_event result. Never invent IDs.
+Updating/deleting workflow:
+1. Use get_events to find the event.
+2. Call propose_event with the event id and the proposed changes (or current details for delete) so the user sees a confirmation card.
+3. After the user confirms, call update_event or delete_event.
 
-For get_events and get_freebusy: call these freely whenever useful — they are read-only.
+Rules:
+- propose_event is display-only — it shows a card but does NOT modify the calendar.
+- create_event, update_event, delete_event are real writes — only call them after the user confirms.
+- The id for update/delete MUST come from a prior get_events or create_event result. Never invent IDs.
+- For new events, pass id as an empty string.
+- get_events and get_freebusy are read-only — call freely.
 
-When displaying events or times to the user, use their timezone (${ctx.timezone}).`;
+When displaying events or times, use the user's timezone (${ctx.timezone}).`;
 }
 
 const MAX_ITERATIONS = 10;
 const MODEL = 'claude-sonnet-4-6';
-
-const WRITE_TOOL_ACTION: Record<string, 'create' | 'update' | 'delete'> = {
-  create_event: 'create',
-  update_event: 'update',
-  delete_event: 'delete',
-};
-
-/** Extract events from tool result JSON and add to cache. */
-function cacheEventsFromResults(
-  results: Anthropic.ToolResultBlockParam[],
-  cache: Map<string, Record<string, unknown>>,
-): void {
-  for (const tr of results) {
-    if (tr.is_error || typeof tr.content !== 'string') continue;
-    try {
-      const parsed = JSON.parse(tr.content);
-      const events = Array.isArray(parsed) ? parsed : [parsed];
-      for (const evt of events) {
-        if (evt.id) cache.set(evt.id, evt);
-      }
-    } catch { /* not JSON */ }
-  }
-}
-
-function isConfirmed(inputMessages: Anthropic.MessageParam[]): boolean {
-  const last = inputMessages[inputMessages.length - 1];
-  if (!last || last.role !== 'user' || typeof last.content !== 'string') return false;
-  return last.content.startsWith('Yes,') || last.content.startsWith('No,');
-}
 
 export class ClaudeService {
   constructor(private readonly client: Anthropic) {}
@@ -76,7 +52,6 @@ export class ClaudeService {
   ): Promise<void> {
     const systemPrompt = buildSystemPrompt(ctx);
     const messages = [...inputMessages];
-    const knownEvents = new Map<string, Record<string, unknown>>();
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       emit({ event: 'status', data: { type: 'thinking' } });
@@ -97,10 +72,16 @@ export class ClaudeService {
         continue;
       }
 
-      if (this.emitProposalsIfNeeded(toolUseBlocks, inputMessages, knownEvents, emit)) return;
+      // propose_event calls → emit as EventCards and stop
+      const proposals = toolUseBlocks.filter((b) => isProposalTool(b.name));
+      if (proposals.length > 0) {
+        this.emitProposals(proposals, emit);
+        emit({ event: 'done', data: {} });
+        return;
+      }
 
+      // All other tools (reads + writes) → dispatch
       const toolResults = await this.dispatchTools(toolUseBlocks, calendarService, emit);
-      cacheEventsFromResults(toolResults, knownEvents);
       messages.push({ role: 'assistant', content: response.content });
       messages.push({ role: 'user', content: toolResults });
     }
@@ -131,22 +112,30 @@ export class ClaudeService {
     return stream.finalMessage();
   }
 
-  private emitProposalsIfNeeded(
-    toolUseBlocks: Anthropic.ToolUseBlock[],
-    inputMessages: Anthropic.MessageParam[],
-    knownEvents: Map<string, Record<string, unknown>>,
-    emit: SSEEmitter,
-  ): boolean {
-    const writeBlocks = toolUseBlocks.filter((b) => isInterceptedTool(b.name));
-    console.log(`[agent] tools: ${toolUseBlocks.map((b) => b.name).join(', ')}, confirmed: ${isConfirmed(inputMessages)}`);
-    if (writeBlocks.length === 0 || isConfirmed(inputMessages)) return false;
+  private emitProposals(blocks: Anthropic.ToolUseBlock[], emit: SSEEmitter): void {
+    const group = blocks.length > 1 ? crypto.randomUUID() : undefined;
 
-    const group = writeBlocks.length > 1 ? crypto.randomUUID() : undefined;
-    for (const block of writeBlocks) {
-      this.emitWriteProposal(block, emit, group, knownEvents);
+    for (const block of blocks) {
+      const input = block.input as Record<string, unknown>;
+      emit({
+        event: 'event_proposal',
+        data: {
+          id: block.id,
+          action: 'create',
+          group,
+          event: {
+            id: (input.id as string) ?? '',
+            title: (input.title as string) ?? 'Untitled',
+            start: (input.start as string) ?? '',
+            end: (input.end as string) ?? '',
+            allDay: false,
+            attendees: input.attendees as string[] | undefined,
+            location: input.location as string | undefined,
+            description: input.description as string | undefined,
+          },
+        },
+      });
     }
-    emit({ event: 'done', data: {} });
-    return true;
   }
 
   private async dispatchTools(
@@ -175,39 +164,5 @@ export class ClaudeService {
         }
       }),
     );
-  }
-
-  private emitWriteProposal(
-    block: Anthropic.ToolUseBlock,
-    emit: SSEEmitter,
-    group?: string,
-    knownEvents?: Map<string, Record<string, unknown>>,
-  ): void {
-    const input = block.input as Record<string, unknown>;
-    const action = WRITE_TOOL_ACTION[block.name];
-    const eventId = (input.event_id as string) ?? '';
-
-    // For update/delete, merge tool input on top of known event data
-    const base = knownEvents?.get(eventId) ?? {};
-    const merged = { ...base, ...input };
-
-    emit({
-      event: 'event_proposal',
-      data: {
-        id: block.id,
-        action,
-        group,
-        event: {
-          id: eventId,
-          title: (merged.title as string) ?? 'Untitled',
-          start: (merged.start as string) ?? '',
-          end: (merged.end as string) ?? '',
-          allDay: false,
-          attendees: merged.attendees as string[] | undefined,
-          location: merged.location as string | undefined,
-          description: merged.description as string | undefined,
-        },
-      },
-    });
   }
 }

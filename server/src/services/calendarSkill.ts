@@ -20,6 +20,17 @@ function asStringArray(v: unknown, field: string): string[] {
   return v as string[];
 }
 
+/** Shared event properties used across propose_event, create_event, update_event, delete_event. */
+const eventProperties = {
+  id: { type: 'string', description: 'Event ID from get_events or create_event (empty string for new events)' },
+  title: { type: 'string', description: 'Event title' },
+  start: { type: 'string', description: 'Start datetime (ISO 8601 with timezone offset)' },
+  end: { type: 'string', description: 'End datetime (ISO 8601 with timezone offset)' },
+  attendees: { type: 'array', items: { type: 'string' }, description: 'Email addresses of attendees' },
+  description: { type: 'string', description: 'Event description' },
+  location: { type: 'string', description: 'Event location' },
+} as const;
+
 export const calendarTools: Anthropic.Tool[] = [
   {
     name: 'get_events',
@@ -67,26 +78,27 @@ Use this to find overlapping availability before scheduling a meeting.`,
     strict: true,
   },
   {
-    name: 'create_event',
-    description: `Creates a new event on the authenticated user's primary calendar.
-Only call this after the user has explicitly confirmed the event details — time, title, and attendees.
-Do not infer or assume confirmation from context. If unsure, ask.
-Returns the created event including its id — store this id if the user may want to update or delete it later.`,
+    name: 'propose_event',
+    description: `Presents an event as an interactive card for the user to accept or decline.
+Use this to propose one or more event options BEFORE creating them. Call MULTIPLE TIMES in a single response for multiple options.
+After the user picks one, call create_event with those details.
+For update/delete proposals, include the existing event id so the user sees what will change.
+This tool is display-only — it does NOT create, modify, or delete anything.`,
     input_schema: {
       type: 'object',
-      properties: {
-        title: { type: 'string', description: 'Event title' },
-        start: { type: 'string', description: 'Start datetime (ISO 8601 with timezone offset)' },
-        end: { type: 'string', description: 'End datetime (ISO 8601 with timezone offset)' },
-        attendees: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Email addresses of attendees (optional)',
-        },
-        description: { type: 'string', description: 'Event description (optional)' },
-        location: { type: 'string', description: 'Event location (optional)' },
-      },
-      required: ['title', 'start', 'end'],
+      properties: eventProperties,
+      required: ['id', 'title', 'start', 'end'],
+    },
+  },
+  {
+    name: 'create_event',
+    description: `Creates a new event on the authenticated user's primary calendar.
+Only call this after the user has confirmed — either by clicking accept on a propose_event card, or by saying "yes", "go ahead", etc.
+Returns the created event including its id.`,
+    input_schema: {
+      type: 'object',
+      properties: eventProperties,
+      required: ['id', 'title', 'start', 'end'],
       additionalProperties: false,
     },
     strict: true,
@@ -94,21 +106,12 @@ Returns the created event including its id — store this id if the user may wan
   {
     name: 'update_event',
     description: `Updates an existing event on the authenticated user's calendar. Uses partial patch — only provided fields are changed, omitted fields stay as-is.
-Only call this after the user has explicitly confirmed what to change.
-The event_id MUST come from a prior get_events or create_event result in this conversation. Never invent or guess an event ID.
+Only call this after the user has confirmed. The id MUST come from a prior get_events or create_event result. Never invent or guess an event ID.
 Returns the updated event.`,
     input_schema: {
       type: 'object',
-      properties: {
-        event_id: { type: 'string', description: 'ID from a prior get_events or create_event result' },
-        title: { type: 'string', description: 'New title (optional)' },
-        start: { type: 'string', description: 'New start datetime ISO 8601 (optional)' },
-        end: { type: 'string', description: 'New end datetime ISO 8601 (optional)' },
-        attendees: { type: 'array', items: { type: 'string' }, description: 'Replacement attendee list (optional)' },
-        description: { type: 'string', description: 'New description (optional)' },
-        location: { type: 'string', description: 'New location (optional)' },
-      },
-      required: ['event_id'],
+      properties: eventProperties,
+      required: ['id'],
       additionalProperties: false,
     },
     strict: true,
@@ -116,18 +119,11 @@ Returns the updated event.`,
   {
     name: 'delete_event',
     description: `Deletes an event from the authenticated user's calendar. This action is irreversible.
-Only call this after the user has explicitly confirmed they want to delete the event.
-The event_id MUST come from a prior get_events or create_event result in this conversation. Never invent or guess an event ID.
-Always include the event title, start, and end so the user can see exactly what will be deleted.`,
+Only call this after the user has confirmed. The id MUST come from a prior get_events or create_event result. Never invent or guess an event ID.`,
     input_schema: {
       type: 'object',
-      properties: {
-        event_id: { type: 'string', description: 'ID from a prior get_events or create_event result' },
-        title: { type: 'string', description: 'Event title (for display in confirmation card)' },
-        start: { type: 'string', description: 'Event start datetime ISO 8601 (for display)' },
-        end: { type: 'string', description: 'Event end datetime ISO 8601 (for display)' },
-      },
-      required: ['event_id'],
+      properties: eventProperties,
+      required: ['id'],
       additionalProperties: false,
     },
     strict: true,
@@ -177,7 +173,7 @@ export async function dispatchTool(
     }
 
     case 'update_event': {
-      const event_id = asString(input.event_id, 'event_id');
+      const id = asString(input.id, 'id');
       const updates: UpdateEventInput = {};
       if (input.title != null) updates.title = asString(input.title, 'title');
       if (input.start != null) updates.start = asString(input.start, 'start');
@@ -185,15 +181,19 @@ export async function dispatchTool(
       if (input.attendees != null) updates.attendees = asStringArray(input.attendees, 'attendees');
       if (input.description != null) updates.description = asString(input.description, 'description');
       if (input.location != null) updates.location = asString(input.location, 'location');
-      const event = await service.updateEvent(event_id, updates);
+      const event = await service.updateEvent(id, updates);
       return JSON.stringify(event);
     }
 
     case 'delete_event': {
-      const event_id = asString(input.event_id, 'event_id');
-      await service.deleteEvent(event_id);
+      const id = asString(input.id, 'id');
+      await service.deleteEvent(id);
       return JSON.stringify({ success: true });
     }
+
+    case 'propose_event':
+      // Display-only — no dispatch. Returns the input as confirmation.
+      return JSON.stringify(input);
 
     default:
       throw new Error(`Unknown tool: ${name}`);
