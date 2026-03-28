@@ -33,9 +33,10 @@ export async function runAgentLoop(
     );
 
     if (result.stopReason === StopReason.EndTurn) {
-      // Flush any accumulated proposals before finishing
+      // Flush any accumulated proposals before finishing, deduped by start time
       if (pendingProposals.length > 0) {
-        emitProposals(pendingProposals.map(sanitizeProposal), emit);
+        const deduped = deduplicateProposals(pendingProposals.map(sanitizeProposal));
+        emitProposals(deduped, emit);
       }
       emit({ event: SSEEventType.Done, data: {} });
       return;
@@ -111,6 +112,17 @@ function emitProposals(toolCalls: ToolCall[], emit: SSEEmitter): void {
 }
 
 /** Cleans up a propose_event tool call, extracting fields even if the model mangled the JSON. */
+/** Removes duplicate proposals (same start + end time). Keeps first occurrence. */
+function deduplicateProposals(proposals: ToolCall[]): ToolCall[] {
+  const seen = new Set<string>();
+  return proposals.filter((tc) => {
+    const key = `${tc.input.start}|${tc.input.end}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function sanitizeProposal(tc: ToolCall): ToolCall {
   const input = { ...tc.input };
 
