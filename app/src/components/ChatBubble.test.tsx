@@ -15,25 +15,25 @@ describe('ChatBubble', () => {
 
   it('applies user styling (blue background)', () => {
     render(<ChatBubble role="user" content="test" />);
-    const bubble = screen.getByText('test');
+    const bubble = screen.getByText('test').closest('div[class*="bg-"]')!;
     expect(bubble.className).toContain('bg-blue-600');
   });
 
   it('applies assistant styling (gray background)', () => {
     render(<ChatBubble role="assistant" content="test" />);
-    const bubble = screen.getByText('test');
+    const bubble = screen.getByText('test').closest('div[class*="bg-"]')!;
     expect(bubble.className).toContain('bg-gray-100');
   });
 
   it('aligns user messages to the right', () => {
     render(<ChatBubble role="user" content="test" />);
-    const wrapper = screen.getByText('test').parentElement!;
+    const wrapper = screen.getByText('test').closest('div[class*="justify-"]')!;
     expect(wrapper.className).toContain('justify-end');
   });
 
   it('aligns assistant messages to the left', () => {
     render(<ChatBubble role="assistant" content="test" />);
-    const wrapper = screen.getByText('test').parentElement!;
+    const wrapper = screen.getByText('test').closest('div[class*="justify-"]')!;
     expect(wrapper.className).toContain('justify-start');
   });
 });
