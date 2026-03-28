@@ -1,4 +1,4 @@
-import type { GoogleCalendarService, CreateEventInput, UpdateEventInput } from './googleCalendar';
+import type { GoogleCalendarService, CreateEventInput, UpdateEventInput, EventReminder } from './googleCalendar';
 import { invertBusy } from './googleCalendar';
 
 function asString(v: unknown, field: string): string {
@@ -19,67 +19,103 @@ function asStringArray(v: unknown, field: string): string[] {
   return v as string[];
 }
 
+function asReminders(v: unknown, field: string): EventReminder[] {
+  if (!Array.isArray(v)) throw new Error(`dispatchTool: expected array for '${field}'`);
+  return v.map((r, i) => {
+    if (typeof r !== 'object' || r === null)
+      throw new Error(`dispatchTool: expected object at ${field}[${i}]`);
+    const obj = r as Record<string, unknown>;
+    if (typeof obj.minutes !== 'number')
+      throw new Error(`dispatchTool: expected number for '${field}[${i}].minutes'`);
+    return {
+      method: asString(obj.method, `${field}[${i}].method`) as 'email' | 'popup',
+      minutes: obj.minutes,
+    };
+  });
+}
+
+async function handleGetEvents(
+  input: Record<string, unknown>,
+  service: GoogleCalendarService,
+): Promise<string> {
+  const start = asDate(input.start, 'start');
+  const end = asDate(input.end, 'end');
+  const events = await service.getEvents(start, end);
+  return JSON.stringify(events);
+}
+
+async function handleGetFreebusy(
+  input: Record<string, unknown>,
+  service: GoogleCalendarService,
+): Promise<string> {
+  const emails = asStringArray(input.emails, 'emails');
+  const start = asDate(input.start, 'start');
+  const end = asDate(input.end, 'end');
+  const result = await service.getFreeBusy(emails, start, end);
+  const enriched = Object.fromEntries(
+    Object.entries(result).map(([email, data]) => [
+      email,
+      { ...data, free: data.accessible ? invertBusy(data.busy, start, end) : [] },
+    ]),
+  );
+  return JSON.stringify(enriched);
+}
+
+async function handleCreateEvent(
+  input: Record<string, unknown>,
+  service: GoogleCalendarService,
+): Promise<string> {
+  const createInput: CreateEventInput = {
+    title: asString(input.title, 'title'),
+    start: asString(input.start, 'start'),
+    end: asString(input.end, 'end'),
+    attendees: input.attendees != null ? asStringArray(input.attendees, 'attendees') : undefined,
+    description: input.description != null ? asString(input.description, 'description') : undefined,
+    location: input.location != null ? asString(input.location, 'location') : undefined,
+    recurrence: input.recurrence != null ? asStringArray(input.recurrence, 'recurrence') : undefined,
+    reminders: input.reminders != null ? asReminders(input.reminders, 'reminders') : undefined,
+  };
+  const event = await service.createEvent(createInput);
+  return JSON.stringify(event);
+}
+
+async function handleUpdateEvent(
+  input: Record<string, unknown>,
+  service: GoogleCalendarService,
+): Promise<string> {
+  const id = asString(input.id, 'id');
+  const updates: UpdateEventInput = {};
+  if (input.title != null) updates.title = asString(input.title, 'title');
+  if (input.start != null) updates.start = asString(input.start, 'start');
+  if (input.end != null) updates.end = asString(input.end, 'end');
+  if (input.attendees != null) updates.attendees = asStringArray(input.attendees, 'attendees');
+  if (input.description != null) updates.description = asString(input.description, 'description');
+  if (input.location != null) updates.location = asString(input.location, 'location');
+  if (input.reminders != null) updates.reminders = asReminders(input.reminders, 'reminders');
+  const event = await service.updateEvent(id, updates);
+  return JSON.stringify(event);
+}
+
+async function handleDeleteEvent(
+  input: Record<string, unknown>,
+  service: GoogleCalendarService,
+): Promise<string> {
+  const id = asString(input.id, 'id');
+  await service.deleteEvent(id);
+  return JSON.stringify({ success: true });
+}
+
 export async function dispatchTool(
   name: string,
   input: Record<string, unknown>,
   service: GoogleCalendarService,
 ): Promise<string> {
   switch (name) {
-    case 'get_events': {
-      const start = asDate(input.start, 'start');
-      const end = asDate(input.end, 'end');
-      const events = await service.getEvents(start, end);
-      return JSON.stringify(events);
-    }
-
-    case 'get_freebusy': {
-      const emails = asStringArray(input.emails, 'emails');
-      const start = asDate(input.start, 'start');
-      const end = asDate(input.end, 'end');
-      const result = await service.getFreeBusy(emails, start, end);
-      const enriched = Object.fromEntries(
-        Object.entries(result).map(([email, data]) => [
-          email,
-          { ...data, free: data.accessible ? invertBusy(data.busy, start, end) : [] },
-        ]),
-      );
-      return JSON.stringify(enriched);
-    }
-
-    case 'create_event': {
-      const createInput: CreateEventInput = {
-        title: asString(input.title, 'title'),
-        start: asString(input.start, 'start'),
-        end: asString(input.end, 'end'),
-        attendees: input.attendees != null ? asStringArray(input.attendees, 'attendees') : undefined,
-        description: input.description != null ? asString(input.description, 'description') : undefined,
-        location: input.location != null ? asString(input.location, 'location') : undefined,
-        recurrence: input.recurrence != null ? asStringArray(input.recurrence, 'recurrence') : undefined,
-      };
-      const event = await service.createEvent(createInput);
-      return JSON.stringify(event);
-    }
-
-    case 'update_event': {
-      const id = asString(input.id, 'id');
-      const updates: UpdateEventInput = {};
-      if (input.title != null) updates.title = asString(input.title, 'title');
-      if (input.start != null) updates.start = asString(input.start, 'start');
-      if (input.end != null) updates.end = asString(input.end, 'end');
-      if (input.attendees != null) updates.attendees = asStringArray(input.attendees, 'attendees');
-      if (input.description != null) updates.description = asString(input.description, 'description');
-      if (input.location != null) updates.location = asString(input.location, 'location');
-      const event = await service.updateEvent(id, updates);
-      return JSON.stringify(event);
-    }
-
-    case 'delete_event': {
-      const id = asString(input.id, 'id');
-      await service.deleteEvent(id);
-      return JSON.stringify({ success: true });
-    }
-
-    default:
-      throw new Error(`Unknown tool: ${name}`);
+    case 'get_events':    return handleGetEvents(input, service);
+    case 'get_freebusy':  return handleGetFreebusy(input, service);
+    case 'create_event':  return handleCreateEvent(input, service);
+    case 'update_event':  return handleUpdateEvent(input, service);
+    case 'delete_event':  return handleDeleteEvent(input, service);
+    default:              throw new Error(`Unknown tool: ${name}`);
   }
 }

@@ -54,6 +54,17 @@ export const calendarTools: ToolDefinition[] = [
         description: { type: 'string', description: 'Event description' },
         location: { type: 'string', description: 'Event location' },
         recurrence: { type: 'array', items: { type: 'string' }, description: 'Recurrence rules in RFC 5545 RRULE format (e.g. ["RRULE:FREQ=WEEKLY;BYDAY=MO"])' },
+        reminders: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              method: { type: 'string', description: '"email" or "popup"' },
+              minutes: { type: 'number', description: 'Minutes before event (0-40320)' },
+            },
+          },
+          description: 'Custom reminders. Omit to use calendar defaults.',
+        },
       },
       required: ['title', 'start', 'end'],
     },
@@ -71,6 +82,17 @@ export const calendarTools: ToolDefinition[] = [
         attendees: { type: 'array', items: { type: 'string' }, description: 'Replacement attendee list' },
         description: { type: 'string', description: 'New description' },
         location: { type: 'string', description: 'New location' },
+        reminders: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              method: { type: 'string', description: '"email" or "popup"' },
+              minutes: { type: 'number', description: 'Minutes before event (0-40320)' },
+            },
+          },
+          description: 'Custom reminders. Omit to use calendar defaults.',
+        },
       },
       required: ['id'],
     },

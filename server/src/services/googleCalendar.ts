@@ -7,6 +7,11 @@ export interface AttendeeInfo {
   responseStatus?: 'accepted' | 'declined' | 'tentative' | 'needsAction';
 }
 
+export interface EventReminder {
+  method: 'email' | 'popup';
+  minutes: number;
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -17,6 +22,7 @@ export interface CalendarEvent {
   location?: string;
   description?: string;
   recurrence?: string[];
+  reminders?: EventReminder[];
 }
 
 export interface FreeSlot {
@@ -53,6 +59,7 @@ export interface CreateEventInput {
   description?: string;
   location?: string;
   recurrence?: string[];
+  reminders?: EventReminder[];
 }
 
 export interface UpdateEventInput {
@@ -62,6 +69,7 @@ export interface UpdateEventInput {
   attendees?: string[];
   description?: string;
   location?: string;
+  reminders?: EventReminder[];
 }
 
 export class GoogleCalendarService {
@@ -117,6 +125,9 @@ export class GoogleCalendarService {
         description: input.description,
         location: input.location,
         recurrence: input.recurrence,
+        reminders: input.reminders
+          ? { useDefault: false, overrides: input.reminders }
+          : undefined,
       },
     });
     const event = normalizeEvent(res.data);
@@ -133,6 +144,7 @@ export class GoogleCalendarService {
     if (updates.attendees   !== undefined) requestBody.attendees   = updates.attendees.map((email) => ({ email }));
     if (updates.description !== undefined) requestBody.description = updates.description;
     if (updates.location    !== undefined) requestBody.location    = updates.location;
+    if (updates.reminders   !== undefined) requestBody.reminders   = { useDefault: false, overrides: updates.reminders };
 
     const res = await this.calendar.events.patch({ calendarId: this.calendarId, eventId, requestBody });
     const event = normalizeEvent(res.data);
@@ -221,6 +233,12 @@ function normalizeEvent(event: calendar_v3.Schema$Event): CalendarEvent | null {
   const attendees = event.attendees
     ?.map((a) => ({ email: a.email!, responseStatus: a.responseStatus as AttendeeInfo['responseStatus'] }))
     .filter((a) => Boolean(a.email));
+  const reminders = event.reminders?.useDefault === false
+    ? event.reminders.overrides?.map((r) => ({
+        method: r.method as 'email' | 'popup',
+        minutes: r.minutes ?? 0,
+      }))
+    : undefined;
   return {
     id: event.id ?? '',
     title: event.summary ?? '',
@@ -231,5 +249,6 @@ function normalizeEvent(event: calendar_v3.Schema$Event): CalendarEvent | null {
     location: event.location ?? undefined,
     description: event.description ?? undefined,
     recurrence: event.recurrence ?? undefined,
+    reminders: reminders?.length ? reminders : undefined,
   };
 }
