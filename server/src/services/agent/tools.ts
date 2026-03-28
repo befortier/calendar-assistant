@@ -14,16 +14,12 @@ const eventProperties = {
 export const calendarTools: ToolDefinition[] = [
   {
     name: 'get_events',
-    description: `Lists calendar events the authenticated user can already access within a time range.
-Only reads calendars the user has explicit permission to view — this does NOT expand permissions or look up other people's event details by email.
-Do not use this to check another person's availability; use get_freebusy for that.
-Returns an array of events, each with: id, title, start (ISO 8601), end (ISO 8601), allDay, attendees (email array), location, description.
-The id field is needed if you later call update_event or delete_event.`,
+    description: `Lists the user's calendar events within a time range. Returns an array of events with id, title, start, end, allDay, attendees, location, and description. Use the id field if you need to update or delete an event later.`,
     inputSchema: {
       type: 'object',
       properties: {
-        start: { type: 'string', description: 'Start of range (ISO 8601 datetime with timezone offset)' },
-        end: { type: 'string', description: 'End of range (ISO 8601 datetime with timezone offset)' },
+        start: { type: 'string', description: 'Start of range (ISO 8601)' },
+        end: { type: 'string', description: 'End of range (ISO 8601)' },
       },
       required: ['start', 'end'],
     },
@@ -31,25 +27,17 @@ The id field is needed if you later call update_event or delete_event.`,
   },
   {
     name: 'get_freebusy',
-    description: `Queries busy blocks and free windows for one or more calendar users within a time range.
-Always include the authenticated user's email in the list.
-Returns an object keyed by email. Each entry has:
-  - accessible (boolean): whether the calendar could be read
-  - status: 'ok' | 'forbidden' | 'not_found' | 'unknown'
-  - busy: array of { start, end } blocks
-  - free: array of { start, end } windows
-If accessible is false, tell the user you cannot see that person's calendar and suggest they send a calendar invite or ask directly. An inaccessible calendar always returns an empty busy array — do NOT interpret that as "free".
-Use this to find overlapping availability before scheduling a meeting.`,
+    description: `Checks busy/free windows for one or more people within a time range. Returns an object keyed by email with accessible (boolean), status, busy blocks, and free windows. If accessible is false, the calendar could not be read — do not assume that person is free.`,
     inputSchema: {
       type: 'object',
       properties: {
         emails: {
           type: 'array',
           items: { type: 'string' },
-          description: "Email addresses to query. Always include the authenticated user's email.",
+          description: 'Email addresses to query.',
         },
-        start: { type: 'string', description: 'Start of range (ISO 8601 datetime with timezone offset)' },
-        end: { type: 'string', description: 'End of range (ISO 8601 datetime with timezone offset)' },
+        start: { type: 'string', description: 'Start of range (ISO 8601)' },
+        end: { type: 'string', description: 'End of range (ISO 8601)' },
       },
       required: ['emails', 'start', 'end'],
     },
@@ -57,12 +45,7 @@ Use this to find overlapping availability before scheduling a meeting.`,
   },
   {
     name: 'propose_event',
-    description: `Presents an event as an interactive card for the user to accept or decline.
-Use this to propose event options BEFORE creating them. Call MULTIPLE TIMES in a single response (2-3 calls) for multiple time slot options — NEVER list options as plain text.
-Always include the meeting title the user mentioned. Never pass an empty title.
-After the user picks one, call create_event with those details.
-For update/delete proposals, include the existing event id so the user sees what will change.
-This tool is display-only — it does NOT create, modify, or delete anything.`,
+    description: `Shows an interactive event card the user can accept or decline. This is display-only — it does not create or modify anything. Call once per option when presenting multiple choices.`,
     inputSchema: {
       type: 'object',
       properties: eventProperties,
@@ -71,9 +54,7 @@ This tool is display-only — it does NOT create, modify, or delete anything.`,
   },
   {
     name: 'create_event',
-    description: `Creates a new event on the authenticated user's primary calendar.
-Only call this after the user has confirmed — either by clicking accept on a propose_event card, or by saying "yes", "go ahead", etc.
-Returns the created event including its id.`,
+    description: `Creates a new event on the user's primary calendar. Only call after the user has confirmed. Returns the created event with its id.`,
     inputSchema: {
       type: 'object',
       properties: eventProperties,
@@ -83,9 +64,7 @@ Returns the created event including its id.`,
   },
   {
     name: 'update_event',
-    description: `Updates an existing event on the authenticated user's calendar. Uses partial patch — only provided fields are changed, omitted fields stay as-is.
-Only call this after the user has confirmed. The id MUST come from a prior get_events or create_event result. Never invent or guess an event ID.
-Returns the updated event.`,
+    description: `Updates an existing event. Partial patch — only provided fields change. Only call after the user has confirmed. The id must come from a prior get_events or create_event result.`,
     inputSchema: {
       type: 'object',
       properties: eventProperties,
@@ -95,8 +74,7 @@ Returns the updated event.`,
   },
   {
     name: 'delete_event',
-    description: `Deletes an event from the authenticated user's calendar. This action is irreversible.
-Only call this after the user has confirmed. The id MUST come from a prior get_events or create_event result. Never invent or guess an event ID.`,
+    description: `Deletes an event. Irreversible. Only call after the user has confirmed. The id must come from a prior get_events or create_event result.`,
     inputSchema: {
       type: 'object',
       properties: eventProperties,
