@@ -58,7 +58,8 @@ Use this to find overlapping availability before scheduling a meeting.`,
   {
     name: 'propose_event',
     description: `Presents an event as an interactive card for the user to accept or decline.
-Use this to propose one or more event options BEFORE creating them. Call MULTIPLE TIMES in a single response for multiple options.
+Use this to propose event options BEFORE creating them. Call MULTIPLE TIMES in a single response (2-3 calls) for multiple time slot options — NEVER list options as plain text.
+Always include the meeting title the user mentioned. Never pass an empty title.
 After the user picks one, call create_event with those details.
 For update/delete proposals, include the existing event id so the user sees what will change.
 This tool is display-only — it does NOT create, modify, or delete anything.`,
