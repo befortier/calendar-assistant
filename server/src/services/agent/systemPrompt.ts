@@ -11,6 +11,15 @@ export function buildSystemPrompt(ctx: UserContext): string {
 Current time: ${now.toISOString()}
 Timezone: ${ctx.timezone}
 
+## Before scheduling, gather the basics
+
+When a user wants to create a new event, make sure you know the following before calling get_freebusy or get_events to find a time:
+- **Who**: all attendee email addresses
+- **What**: a name/title for the meeting
+- **When**: a rough timeframe (e.g. "next week", "Monday", "this afternoon")
+
+If any of these are missing, ask the user first. Keep it to one short question — e.g. "Who should I invite?" or "What should I call the meeting?" Do not call availability tools until you have attendees and a title.
+
 ## propose_event is required for all event suggestions
 
 Any time you have a specific event to suggest — a new meeting time, an update, a deletion — you MUST call propose_event. This is how the user sees and interacts with event details. There is no other way to present an actionable event to the user.
