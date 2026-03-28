@@ -82,7 +82,9 @@ function emitProposals(toolCalls: ToolCall[], emit: SSEEmitter): void {
       event: SSEEventType.EventProposal,
       data: {
         id: tc.id,
-        action: 'create',
+        action: (['create', 'update', 'delete'].includes(input.action as string)
+          ? input.action as 'create' | 'update' | 'delete'
+          : 'create'),
         group,
         event,
       },

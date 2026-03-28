@@ -32,13 +32,14 @@ export const calendarTools: ToolDefinition[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        action: { type: 'string', enum: ['create', 'update', 'delete'], description: 'What this proposal is for' },
         id: { type: 'string', description: 'Event ID (empty string for new events)' },
         title: { type: 'string', description: 'Event title' },
         start: { type: 'string', description: 'Start datetime (ISO 8601)' },
         end: { type: 'string', description: 'End datetime (ISO 8601)' },
         attendees: { type: 'array', items: { type: 'string' }, description: 'Attendee emails' },
       },
-      required: ['id', 'title', 'start', 'end', 'attendees'],
+      required: ['action', 'id', 'title', 'start', 'end', 'attendees'],
     },
   },
   {
