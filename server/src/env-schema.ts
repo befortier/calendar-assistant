@@ -6,6 +6,7 @@ export const envSchema = z.object({
   GOOGLE_CLIENT_ID:     z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   ANTHROPIC_API_KEY:    z.string().min(1),
+  ANTHROPIC_MODEL:      z.string().default('claude-sonnet-4-6'),
   PORT:                 z.coerce.number().int().min(1).max(65535).default(3001),
   ALLOWED_ORIGIN:       z.string().default('http://localhost:5173'),
 });

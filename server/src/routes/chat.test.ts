@@ -3,7 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import { createChatRouter, type ChatRouterDeps } from './chat';
 import type { IUserRepository, User } from '../db/user-repository';
-import type { ClaudeService } from '../services/claude';
+import type { LLMProvider } from '../services/agent/types';
 import type { GoogleCalendarService } from '../services/googleCalendar';
 
 const FAKE_USER: User = {
@@ -20,9 +20,9 @@ function makeDeps(overrides?: Partial<ChatRouterDeps>): ChatRouterDeps {
       upsertUser: vi.fn(),
       getUserById: vi.fn().mockReturnValue(FAKE_USER),
     },
-    claudeService: {
-      runAgentLoop: vi.fn().mockResolvedValue('You have 3 meetings today.'),
-    } as unknown as ClaudeService,
+    provider: {
+      stream: vi.fn().mockResolvedValue({ stopReason: 'end_turn', text: 'Hello', toolCalls: [] }),
+    } as unknown as LLMProvider,
     calendarServiceFactory: vi.fn().mockReturnValue({} as GoogleCalendarService),
     ...overrides,
   };
@@ -31,9 +31,8 @@ function makeDeps(overrides?: Partial<ChatRouterDeps>): ChatRouterDeps {
 function makeApp(deps: ChatRouterDeps) {
   const app = express();
   app.use(express.json());
-  // Simulate JWT middleware setting userId
   app.use((req, _res, next) => {
-    req.userId = 'user-1';
+    (req as unknown as { userId?: string }).userId = 'user-1';
     next();
   });
   app.use('/chat', createChatRouter(deps));
@@ -49,25 +48,12 @@ describe('POST /chat', () => {
     app = makeApp(deps);
   });
 
-  it('returns 200 with reply on success', async () => {
+  it('returns SSE content type', async () => {
     const res = await request(app)
       .post('/chat')
-      .send({ messages: [{ role: 'user', content: 'What do I have today?' }], timezone: 'America/New_York' });
+      .send({ messages: [{ role: 'user', content: 'Hi' }], timezone: 'UTC' });
 
-    expect(res.status).toBe(200);
-    expect(res.body.reply).toBe('You have 3 meetings today.');
-  });
-
-  it('calls runAgentLoop with correct arguments', async () => {
-    await request(app)
-      .post('/chat')
-      .send({ messages: [{ role: 'user', content: 'Hi' }], timezone: 'Europe/London' });
-
-    expect(deps.claudeService.runAgentLoop).toHaveBeenCalledWith(
-      [{ role: 'user', content: 'Hi' }],
-      expect.anything(), // calendar service
-      { email: 'alice@example.com', timezone: 'Europe/London' },
-    );
+    expect(res.headers['content-type']).toContain('text/event-stream');
   });
 
   it('creates calendar service with user tokens', async () => {
@@ -78,18 +64,6 @@ describe('POST /chat', () => {
     expect(deps.calendarServiceFactory).toHaveBeenCalledWith('access-tok', 'refresh-tok');
   });
 
-  it('defaults timezone to UTC when not provided', async () => {
-    await request(app)
-      .post('/chat')
-      .send({ messages: [{ role: 'user', content: 'Hi' }] });
-
-    expect(deps.claudeService.runAgentLoop).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({ timezone: 'UTC' }),
-    );
-  });
-
   it('returns 400 when messages is missing', async () => {
     const res = await request(app).post('/chat').send({});
     expect(res.status).toBe(400);
@@ -97,26 +71,25 @@ describe('POST /chat', () => {
   });
 
   it('returns 400 when messages is empty', async () => {
-    const res = await request(app).post('/chat').send({ messages: [] });
+    const res = await request(app).post('/chat').send({ messages: [], timezone: 'UTC' });
     expect(res.status).toBe(400);
   });
 
   it('returns 400 when message has invalid role', async () => {
     const res = await request(app)
       .post('/chat')
-      .send({ messages: [{ role: 'system', content: 'hi' }] });
+      .send({ messages: [{ role: 'system', content: 'hi' }], timezone: 'UTC' });
     expect(res.status).toBe(400);
   });
 
   it('returns 401 when userId is missing from request', async () => {
     const noAuthApp = express();
     noAuthApp.use(express.json());
-    // No middleware setting userId
     noAuthApp.use('/chat', createChatRouter(deps));
 
     const res = await request(noAuthApp)
       .post('/chat')
-      .send({ messages: [{ role: 'user', content: 'Hi' }] });
+      .send({ messages: [{ role: 'user', content: 'Hi' }], timezone: 'UTC' });
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('Unauthorized');
@@ -130,7 +103,7 @@ describe('POST /chat', () => {
 
     const res = await request(app)
       .post('/chat')
-      .send({ messages: [{ role: 'user', content: 'Hi' }] });
+      .send({ messages: [{ role: 'user', content: 'Hi' }], timezone: 'UTC' });
 
     expect(res.status).toBe(401);
     expect(res.body.error).toContain('not found');
@@ -147,25 +120,25 @@ describe('POST /chat', () => {
 
     const res = await request(app)
       .post('/chat')
-      .send({ messages: [{ role: 'user', content: 'Hi' }] });
+      .send({ messages: [{ role: 'user', content: 'Hi' }], timezone: 'UTC' });
 
     expect(res.status).toBe(401);
     expect(res.body.error).toContain('reauthorize');
   });
 
-  it('returns 500 when agent loop throws', async () => {
-    const errorDeps = makeDeps({
-      claudeService: {
-        runAgentLoop: vi.fn().mockRejectedValue(new Error('Context window exceeded')),
-      } as unknown as ClaudeService,
-    });
-    app = makeApp(errorDeps);
-
+  it('defaults timezone to UTC when not provided', async () => {
     const res = await request(app)
       .post('/chat')
       .send({ messages: [{ role: 'user', content: 'Hi' }] });
 
-    expect(res.status).toBe(500);
-    expect(res.body.error).toBeDefined();
+    expect(res.headers['content-type']).toContain('text/event-stream');
+  });
+
+  it('returns 400 for invalid timezone', async () => {
+    const res = await request(app)
+      .post('/chat')
+      .send({ messages: [{ role: 'user', content: 'Hi' }], timezone: 'Not/A/Timezone' });
+
+    expect(res.status).toBe(400);
   });
 });
