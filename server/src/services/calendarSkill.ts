@@ -1,4 +1,3 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import type { GoogleCalendarService, CreateEventInput, UpdateEventInput } from './googleCalendar';
 import { invertBusy } from './googleCalendar';
 
@@ -20,120 +19,8 @@ function asStringArray(v: unknown, field: string): string[] {
   return v as string[];
 }
 
-export const calendarTools: Anthropic.Tool[] = [
-  {
-    name: 'get_events',
-    description: `Lists calendar events the authenticated user can already access within a time range.
-Only reads calendars the user has explicit permission to view — this does NOT expand permissions or look up other people's event details by email.
-Do not use this to check another person's availability; use get_freebusy for that.
-Returns an array of events, each with: id, title, start (ISO 8601), end (ISO 8601), allDay, attendees (email array), location, description.
-The id field is needed if you later call update_event or delete_event.`,
-    input_schema: {
-      type: 'object',
-      properties: {
-        start: { type: 'string', description: 'Start of range (ISO 8601 datetime with timezone offset)' },
-        end: { type: 'string', description: 'End of range (ISO 8601 datetime with timezone offset)' },
-      },
-      required: ['start', 'end'],
-      additionalProperties: false,
-    },
-    strict: true,
-  },
-  {
-    name: 'get_freebusy',
-    description: `Queries busy blocks and free windows for one or more calendar users within a time range.
-Always include the authenticated user's email in the list.
-Returns an object keyed by email. Each entry has:
-  - accessible (boolean): whether the calendar could be read
-  - status: 'ok' | 'forbidden' | 'not_found' | 'unknown'
-  - busy: array of { start, end } blocks
-  - free: array of { start, end } windows
-If accessible is false, tell the user you cannot see that person's calendar and suggest they send a calendar invite or ask directly. An inaccessible calendar always returns an empty busy array — do NOT interpret that as "free".
-Use this to find overlapping availability before scheduling a meeting.`,
-    input_schema: {
-      type: 'object',
-      properties: {
-        emails: {
-          type: 'array',
-          items: { type: 'string' },
-          description: "Email addresses to query. Always include the authenticated user's email.",
-        },
-        start: { type: 'string', description: 'Start of range (ISO 8601 datetime with timezone offset)' },
-        end: { type: 'string', description: 'End of range (ISO 8601 datetime with timezone offset)' },
-      },
-      required: ['emails', 'start', 'end'],
-      additionalProperties: false,
-    },
-    strict: true,
-  },
-  {
-    name: 'create_event',
-    description: `Creates a new event on the authenticated user's primary calendar.
-Only call this after the user has explicitly confirmed the event details — time, title, and attendees.
-Do not infer or assume confirmation from context. If unsure, ask.
-Returns the created event including its id — store this id if the user may want to update or delete it later.`,
-    input_schema: {
-      type: 'object',
-      properties: {
-        title: { type: 'string', description: 'Event title' },
-        start: { type: 'string', description: 'Start datetime (ISO 8601 with timezone offset)' },
-        end: { type: 'string', description: 'End datetime (ISO 8601 with timezone offset)' },
-        attendees: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Email addresses of attendees (optional)',
-        },
-        description: { type: 'string', description: 'Event description (optional)' },
-        location: { type: 'string', description: 'Event location (optional)' },
-      },
-      required: ['title', 'start', 'end'],
-      additionalProperties: false,
-    },
-    strict: true,
-  },
-  {
-    name: 'update_event',
-    description: `Updates an existing event on the authenticated user's calendar. Uses partial patch — only provided fields are changed, omitted fields stay as-is.
-Only call this after the user has explicitly confirmed what to change.
-The event_id MUST come from a prior get_events or create_event result in this conversation. Never invent or guess an event ID.
-Returns the updated event.`,
-    input_schema: {
-      type: 'object',
-      properties: {
-        event_id: { type: 'string', description: 'ID from a prior get_events or create_event result' },
-        title: { type: 'string', description: 'New title (optional)' },
-        start: { type: 'string', description: 'New start datetime ISO 8601 (optional)' },
-        end: { type: 'string', description: 'New end datetime ISO 8601 (optional)' },
-        attendees: { type: 'array', items: { type: 'string' }, description: 'Replacement attendee list (optional)' },
-        description: { type: 'string', description: 'New description (optional)' },
-        location: { type: 'string', description: 'New location (optional)' },
-      },
-      required: ['event_id'],
-      additionalProperties: false,
-    },
-    strict: true,
-  },
-  {
-    name: 'delete_event',
-    description: `Deletes an event from the authenticated user's calendar. This action is irreversible.
-Only call this after the user has explicitly confirmed they want to delete the event.
-The event_id MUST come from a prior get_events or create_event result in this conversation. Never invent or guess an event ID.`,
-    input_schema: {
-      type: 'object',
-      properties: {
-        event_id: { type: 'string', description: 'ID from a prior get_events or create_event result' },
-      },
-      required: ['event_id'],
-      additionalProperties: false,
-    },
-    strict: true,
-  },
-];
-
-export type ToolName = (typeof calendarTools)[number]['name'];
-
 export async function dispatchTool(
-  name: ToolName,
+  name: string,
   input: Record<string, unknown>,
   service: GoogleCalendarService,
 ): Promise<string> {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { dispatchTool, type ToolName } from './calendarSkill';
+import { dispatchTool } from './calendarSkill';
 import type { GoogleCalendarService } from './googleCalendar';
 
 const START = '2026-03-22T00:00:00.000Z';
@@ -169,7 +169,7 @@ describe('dispatchTool: unknown tool', () => {
   it('throws for an unrecognised tool name', async () => {
     const service = makeService();
 
-    await expect(dispatchTool('nonexistent' as ToolName, {}, service)).rejects.toThrow(
+    await expect(dispatchTool('nonexistent', {}, service)).rejects.toThrow(
       'Unknown tool: nonexistent',
     );
   });
