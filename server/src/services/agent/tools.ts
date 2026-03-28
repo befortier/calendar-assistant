@@ -40,7 +40,6 @@ export const calendarTools: ToolDefinition[] = [
       },
       required: ['id', 'title', 'start', 'end', 'attendees'],
     },
-    strict: true,
   },
   {
     name: 'create_event',

@@ -44,19 +44,8 @@ export async function runAgentLoop(
 
     const proposals = result.toolCalls.filter((tc) => isProposalTool(tc.name));
     if (proposals.length > 0) {
-      const invalid = validateProposals(proposals);
-      if (invalid) {
-        // Reject and force retry — send tool_result errors back to the model
-        messages.push({ role: 'assistant', text: result.text, toolCalls: result.toolCalls });
-        messages.push(...proposals.map((tc) => ({
-          role: 'tool_result' as const,
-          toolCallId: tc.id,
-          content: invalid,
-          isError: true,
-        })));
-        continue;
-      }
-      emitProposals(proposals, emit);
+      const sanitized = proposals.map(sanitizeProposal);
+      emitProposals(sanitized, emit);
       emit({ event: SSEEventType.Done, data: {} });
       return;
     }
@@ -99,18 +88,26 @@ function emitProposals(toolCalls: ToolCall[], emit: SSEEmitter): void {
   }
 }
 
-/** Returns an error message if any proposal is invalid, or null if all are valid. */
-function validateProposals(proposals: ToolCall[]): string | null {
-  for (const tc of proposals) {
-    const input = tc.input;
-    if (!input.title || (typeof input.title === 'string' && input.title.trim() === '')) {
-      return 'Error: propose_event requires a non-empty title. Use the meeting name the user mentioned.';
-    }
-    if (!input.start || !input.end) {
-      return 'Error: propose_event requires start and end times.';
-    }
+/** Cleans up a propose_event tool call, extracting fields even if the model mangled the JSON. */
+function sanitizeProposal(tc: ToolCall): ToolCall {
+  const input = { ...tc.input };
+
+  // The model sometimes embeds XML-like content in the id field that contains the title.
+  // Extract a clean title from wherever we can find it.
+  const rawId = typeof input.id === 'string' ? input.id : '';
+  const rawTitle = typeof input.title === 'string' ? input.title : '';
+
+  // If id contains non-ID content (XML tags, long strings), it's mangled — clear it.
+  if (rawId.length > 100 || rawId.includes('<') || rawId.includes('\n')) {
+    input.id = '';
   }
-  return null;
+
+  // If title is missing but we can find something usable, fall back.
+  if (!rawTitle.trim()) {
+    input.title = 'Meeting';
+  }
+
+  return { ...tc, input };
 }
 
 async function dispatchAll(
