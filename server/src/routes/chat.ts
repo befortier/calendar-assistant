@@ -6,7 +6,7 @@ import { runAgentLoop } from '../services/agent/agentLoop';
 import { calendarTools } from '../services/agent/tools';
 import { buildSystemPrompt } from '../services/agent/systemPrompt';
 import { dispatchTool } from '../services/calendarSkill';
-import { formatSSE } from '../services/sse';
+import { formatSSE, SSEEventType } from '../services/sse';
 import type { LLMProvider } from '../services/agent/types';
 
 export interface ChatRouterDeps {
@@ -80,7 +80,7 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
       const message = err instanceof Error ? err.message : 'Unknown error';
       if (!closed) {
         res.write(
-          formatSSE({ event: 'error', data: { message } }),
+          formatSSE({ event: SSEEventType.Error, data: { message } }),
         );
       }
     } finally {
