@@ -12,7 +12,6 @@ export const calendarTools: ToolDefinition[] = [
       },
       required: ['start', 'end'],
     },
-    strict: true,
   },
   {
     name: 'get_freebusy',
@@ -26,7 +25,6 @@ export const calendarTools: ToolDefinition[] = [
       },
       required: ['emails', 'start', 'end'],
     },
-    strict: true,
   },
   {
     name: 'propose_event',
@@ -59,7 +57,6 @@ export const calendarTools: ToolDefinition[] = [
       },
       required: ['title', 'start', 'end'],
     },
-    strict: true,
   },
   {
     name: 'update_event',
@@ -77,7 +74,6 @@ export const calendarTools: ToolDefinition[] = [
       },
       required: ['id'],
     },
-    strict: true,
   },
   {
     name: 'delete_event',
@@ -89,6 +85,5 @@ export const calendarTools: ToolDefinition[] = [
       },
       required: ['id'],
     },
-    strict: true,
   },
 ];
