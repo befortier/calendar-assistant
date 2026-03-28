@@ -124,7 +124,7 @@ describe('dispatchTool: create_event', () => {
 // ---------------------------------------------------------------------------
 
 describe('dispatchTool: update_event', () => {
-  it('calls service.updateEvent with event_id and updates, returns JSON event', async () => {
+  it('calls service.updateEvent with id and updates, returns JSON event', async () => {
     const mockUpdate = vi.fn().mockResolvedValue({
       id: 'evt-123',
       title: 'New title',
@@ -136,7 +136,7 @@ describe('dispatchTool: update_event', () => {
 
     const result = await dispatchTool(
       'update_event',
-      { event_id: 'evt-123', title: 'New title' },
+      { id: 'evt-123', title: 'New title' },
       service,
     );
 
@@ -150,11 +150,11 @@ describe('dispatchTool: update_event', () => {
 // ---------------------------------------------------------------------------
 
 describe('dispatchTool: delete_event', () => {
-  it('calls service.deleteEvent with event_id and returns success', async () => {
+  it('calls service.deleteEvent with id and returns success', async () => {
     const mockDelete = vi.fn().mockResolvedValue(undefined);
     const service = makeService({ deleteEvent: mockDelete });
 
-    const result = await dispatchTool('delete_event', { event_id: 'evt-abc' }, service);
+    const result = await dispatchTool('delete_event', { id: 'evt-abc' }, service);
 
     expect(mockDelete).toHaveBeenCalledWith('evt-abc');
     expect(JSON.parse(result)).toEqual({ success: true });
@@ -220,11 +220,11 @@ describe('dispatchTool: input validation', () => {
     ).rejects.toThrow("expected string for 'title'");
   });
 
-  it('throws when delete_event is missing event_id', async () => {
+  it('throws when delete_event is missing id', async () => {
     const service = makeService();
 
     await expect(dispatchTool('delete_event', {}, service)).rejects.toThrow(
-      "expected string for 'event_id'",
+      "expected string for 'id'",
     );
   });
 });

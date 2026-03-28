@@ -60,7 +60,7 @@ export async function dispatchTool(
     }
 
     case 'update_event': {
-      const event_id = asString(input.event_id, 'event_id');
+      const id = asString(input.id, 'id');
       const updates: UpdateEventInput = {};
       if (input.title != null) updates.title = asString(input.title, 'title');
       if (input.start != null) updates.start = asString(input.start, 'start');
@@ -68,13 +68,13 @@ export async function dispatchTool(
       if (input.attendees != null) updates.attendees = asStringArray(input.attendees, 'attendees');
       if (input.description != null) updates.description = asString(input.description, 'description');
       if (input.location != null) updates.location = asString(input.location, 'location');
-      const event = await service.updateEvent(event_id, updates);
+      const event = await service.updateEvent(id, updates);
       return JSON.stringify(event);
     }
 
     case 'delete_event': {
-      const event_id = asString(input.event_id, 'event_id');
-      await service.deleteEvent(event_id);
+      const id = asString(input.id, 'id');
+      await service.deleteEvent(id);
       return JSON.stringify({ success: true });
     }
 
