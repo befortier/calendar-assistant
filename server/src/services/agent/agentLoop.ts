@@ -90,9 +90,9 @@ function emitProposals(toolCalls: ToolCall[], emit: SSEEmitter): void {
       title: (input.title as string) ?? 'Untitled',
       start: (input.start as string) ?? '',
       end: (input.end as string) ?? '',
-      allDay: false,
+      allDay: Boolean(input.allDay),
       attendees: Array.isArray(input.attendees)
-        ? (input.attendees as string[]).map((email) => ({ email }))
+        ? input.attendees.filter((e): e is string => typeof e === 'string').map((email) => ({ email }))
         : undefined,
       location: input.location as string | undefined,
       description: input.description as string | undefined,

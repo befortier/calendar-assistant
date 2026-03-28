@@ -7,7 +7,7 @@ import { calendarTools } from '../services/agent/tools';
 import { buildSystemPrompt } from '../services/agent/systemPrompt';
 import { dispatchTool } from '../services/calendarSkill';
 import { formatSSE, SSEEventType } from '../services/sse';
-import type { LLMProvider } from '../services/agent/types';
+import type { LLMProvider, ChatMessage } from '../services/agent/types';
 
 export interface ChatRouterDeps {
   users: IUserRepository;
@@ -23,7 +23,9 @@ const MessageSchema = z.object({
 
 const ChatRequestSchema = z.object({
   messages: z.array(MessageSchema).min(1),
-  timezone: z.string(),
+  timezone: z.string().refine((tz) => {
+    try { Intl.DateTimeFormat(undefined, { timeZone: tz }); return true; } catch { return false; }
+  }, { message: 'Invalid IANA timezone' }),
 });
 
 export function createChatRouter(deps: ChatRouterDeps): Router {
@@ -64,17 +66,11 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
     });
 
     try {
-      const chatMessages: import('../services/agent/types').ChatMessage[] = parsed.data.messages.map((m) => {
-        if (m.role === 'assistant') {
-          return { role: 'assistant' as const, text: m.content, toolCalls: [] };
-        }
-        const msg: import('../services/agent/types').ChatMessage = { role: 'user' as const, content: m.content };
-        if (m.metadata) {
-          (msg as { metadata?: Record<string, unknown> }).metadata = m.metadata;
-          console.log('[chat] user message has metadata:', JSON.stringify(m.metadata));
-        }
-        return msg;
-      });
+      const chatMessages: ChatMessage[] = parsed.data.messages.map((m): ChatMessage =>
+        m.role === 'assistant'
+          ? { role: 'assistant', text: m.content, toolCalls: [] }
+          : { role: 'user', content: m.content, metadata: m.metadata },
+      );
       await runAgentLoop(
         chatMessages,
         {

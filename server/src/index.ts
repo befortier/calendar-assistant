@@ -40,7 +40,7 @@ app.use('/calendar', auth);
 app.use('/chat', auth);
 app.use('/skills', auth);
 
-const provider = new ClaudeAdapter(new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }));
+const provider = new ClaudeAdapter(new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }), config.ANTHROPIC_MODEL);
 
 app.use(
   '/chat',
