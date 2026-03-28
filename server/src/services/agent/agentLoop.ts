@@ -72,7 +72,9 @@ function emitProposals(toolCalls: ToolCall[], emit: SSEEmitter): void {
       start: (input.start as string) ?? '',
       end: (input.end as string) ?? '',
       allDay: false,
-      attendees: input.attendees as string[] | undefined,
+      attendees: Array.isArray(input.attendees)
+        ? (input.attendees as string[]).map((email) => ({ email }))
+        : undefined,
       location: input.location as string | undefined,
       description: input.description as string | undefined,
     };
