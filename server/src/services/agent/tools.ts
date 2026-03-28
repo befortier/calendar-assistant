@@ -66,9 +66,8 @@ This tool is display-only — it does NOT create, modify, or delete anything.`,
     inputSchema: {
       type: 'object',
       properties: eventProperties,
-      required: ['id', 'title', 'start', 'end', 'attendees', 'description', 'location'],
+      required: ['id', 'title', 'start', 'end'],
     },
-    strict: true,
   },
   {
     name: 'create_event',

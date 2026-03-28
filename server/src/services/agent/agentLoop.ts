@@ -44,6 +44,18 @@ export async function runAgentLoop(
 
     const proposals = result.toolCalls.filter((tc) => isProposalTool(tc.name));
     if (proposals.length > 0) {
+      const invalid = validateProposals(proposals);
+      if (invalid) {
+        // Reject and force retry — send tool_result errors back to the model
+        messages.push({ role: 'assistant', text: result.text, toolCalls: result.toolCalls });
+        messages.push(...proposals.map((tc) => ({
+          role: 'tool_result' as const,
+          toolCallId: tc.id,
+          content: invalid,
+          isError: true,
+        })));
+        continue;
+      }
       emitProposals(proposals, emit);
       emit({ event: SSEEventType.Done, data: {} });
       return;
@@ -85,6 +97,20 @@ function emitProposals(toolCalls: ToolCall[], emit: SSEEmitter): void {
       },
     });
   }
+}
+
+/** Returns an error message if any proposal is invalid, or null if all are valid. */
+function validateProposals(proposals: ToolCall[]): string | null {
+  for (const tc of proposals) {
+    const input = tc.input;
+    if (!input.title || (typeof input.title === 'string' && input.title.trim() === '')) {
+      return 'Error: propose_event requires a non-empty title. Use the meeting name the user mentioned.';
+    }
+    if (!input.start || !input.end) {
+      return 'Error: propose_event requires start and end times.';
+    }
+  }
+  return null;
 }
 
 async function dispatchAll(
