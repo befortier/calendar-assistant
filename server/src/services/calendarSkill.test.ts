@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { dispatchTool, type ToolName } from './calendarSkill';
+import { dispatchTool } from './calendarSkill';
 import type { GoogleCalendarService } from './googleCalendar';
 
 const START = '2026-03-22T00:00:00.000Z';
@@ -117,6 +117,85 @@ describe('dispatchTool: create_event', () => {
     });
     expect(JSON.parse(result).id).toBe('new-evt');
   });
+
+  it('forwards recurrence array to service.createEvent', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      id: 'rec-evt',
+      title: 'Weekly sync',
+      start: '2026-03-22T10:00:00Z',
+      end: '2026-03-22T10:30:00Z',
+      allDay: false,
+      recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO'],
+    });
+    const service = makeService({ createEvent: mockCreate });
+
+    await dispatchTool(
+      'create_event',
+      {
+        title: 'Weekly sync',
+        start: '2026-03-22T10:00:00Z',
+        end: '2026-03-22T10:30:00Z',
+        recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO'],
+      },
+      service,
+    );
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO'] }),
+    );
+  });
+
+  it('forwards reminders array to service.createEvent', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      id: 'rem-evt',
+      title: 'Team sync',
+      start: '2026-03-22T10:00:00Z',
+      end: '2026-03-22T10:30:00Z',
+      allDay: false,
+    });
+    const service = makeService({ createEvent: mockCreate });
+
+    await dispatchTool(
+      'create_event',
+      {
+        title: 'Team sync',
+        start: '2026-03-22T10:00:00Z',
+        end: '2026-03-22T10:30:00Z',
+        reminders: [{ method: 'popup', minutes: 15 }],
+      },
+      service,
+    );
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ reminders: [{ method: 'popup', minutes: 15 }] }),
+    );
+  });
+
+  it('forwards allDay boolean to service.createEvent', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      id: 'allday-evt',
+      title: 'Company holiday',
+      start: '2026-03-22',
+      end: '2026-03-23',
+      allDay: true,
+    });
+    const service = makeService({ createEvent: mockCreate });
+
+    await dispatchTool(
+      'create_event',
+      {
+        title: 'Company holiday',
+        start: '2026-03-22',
+        end: '2026-03-23',
+        allDay: true,
+      },
+      service,
+    );
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ allDay: true }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -124,7 +203,7 @@ describe('dispatchTool: create_event', () => {
 // ---------------------------------------------------------------------------
 
 describe('dispatchTool: update_event', () => {
-  it('calls service.updateEvent with event_id and updates, returns JSON event', async () => {
+  it('calls service.updateEvent with id and updates, returns JSON event', async () => {
     const mockUpdate = vi.fn().mockResolvedValue({
       id: 'evt-123',
       title: 'New title',
@@ -136,7 +215,7 @@ describe('dispatchTool: update_event', () => {
 
     const result = await dispatchTool(
       'update_event',
-      { event_id: 'evt-123', title: 'New title' },
+      { id: 'evt-123', title: 'New title' },
       service,
     );
 
@@ -150,11 +229,11 @@ describe('dispatchTool: update_event', () => {
 // ---------------------------------------------------------------------------
 
 describe('dispatchTool: delete_event', () => {
-  it('calls service.deleteEvent with event_id and returns success', async () => {
+  it('calls service.deleteEvent with id and returns success', async () => {
     const mockDelete = vi.fn().mockResolvedValue(undefined);
     const service = makeService({ deleteEvent: mockDelete });
 
-    const result = await dispatchTool('delete_event', { event_id: 'evt-abc' }, service);
+    const result = await dispatchTool('delete_event', { id: 'evt-abc' }, service);
 
     expect(mockDelete).toHaveBeenCalledWith('evt-abc');
     expect(JSON.parse(result)).toEqual({ success: true });
@@ -169,7 +248,7 @@ describe('dispatchTool: unknown tool', () => {
   it('throws for an unrecognised tool name', async () => {
     const service = makeService();
 
-    await expect(dispatchTool('nonexistent' as ToolName, {}, service)).rejects.toThrow(
+    await expect(dispatchTool('nonexistent', {}, service)).rejects.toThrow(
       'Unknown tool: nonexistent',
     );
   });
@@ -220,11 +299,11 @@ describe('dispatchTool: input validation', () => {
     ).rejects.toThrow("expected string for 'title'");
   });
 
-  it('throws when delete_event is missing event_id', async () => {
+  it('throws when delete_event is missing id', async () => {
     const service = makeService();
 
     await expect(dispatchTool('delete_event', {}, service)).rejects.toThrow(
-      "expected string for 'event_id'",
+      "expected string for 'id'",
     );
   });
 });

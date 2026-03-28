@@ -1,6 +1,17 @@
 import { google } from 'googleapis';
 import type { calendar_v3 } from 'googleapis';
 import type { Config } from '../env-schema';
+import { randomUUID } from 'crypto';
+
+export interface AttendeeInfo {
+  email: string;
+  responseStatus?: 'accepted' | 'declined' | 'tentative' | 'needsAction';
+}
+
+export interface EventReminder {
+  method: 'email' | 'popup';
+  minutes: number;
+}
 
 export interface CalendarEvent {
   id: string;
@@ -8,9 +19,12 @@ export interface CalendarEvent {
   start: string;
   end: string;
   allDay: boolean;
-  attendees?: string[];
+  attendees?: AttendeeInfo[];
   location?: string;
   description?: string;
+  recurrence?: string[];
+  reminders?: EventReminder[];
+  meetLink?: string;
 }
 
 export interface FreeSlot {
@@ -46,6 +60,10 @@ export interface CreateEventInput {
   attendees?: string[];
   description?: string;
   location?: string;
+  recurrence?: string[];
+  reminders?: EventReminder[];
+  allDay?: boolean;
+  timeZone?: string;
 }
 
 export interface UpdateEventInput {
@@ -55,6 +73,8 @@ export interface UpdateEventInput {
   attendees?: string[];
   description?: string;
   location?: string;
+  reminders?: EventReminder[];
+  allDay?: boolean;
 }
 
 export class GoogleCalendarService {
@@ -100,16 +120,33 @@ export class GoogleCalendarService {
   }
 
   async createEvent(input: CreateEventInput): Promise<CalendarEvent> {
+    const timeZone = input.timeZone;
+    const requestBody: calendar_v3.Schema$Event = {
+      summary: input.title,
+      start: input.allDay ? { date: input.start } : { dateTime: input.start, ...(timeZone && { timeZone }) },
+      end: input.allDay ? { date: input.end } : { dateTime: input.end, ...(timeZone && { timeZone }) },
+      attendees: input.attendees?.map((email) => ({ email })),
+      description: input.description,
+      location: input.location,
+      recurrence: input.recurrence,
+      reminders: input.reminders
+        ? { useDefault: false, overrides: input.reminders }
+        : undefined,
+    };
+
+    if (input.attendees?.length) {
+      requestBody.conferenceData = {
+        createRequest: {
+          requestId: randomUUID(),
+          conferenceSolutionKey: { type: 'hangoutsMeet' },
+        },
+      };
+    }
+
     const res = await this.calendar.events.insert({
       calendarId: this.calendarId,
-      requestBody: {
-        summary: input.title,
-        start: { dateTime: input.start },
-        end: { dateTime: input.end },
-        attendees: input.attendees?.map((email) => ({ email })),
-        description: input.description,
-        location: input.location,
-      },
+      requestBody,
+      conferenceDataVersion: 1,
     });
     const event = normalizeEvent(res.data);
     if (!event) throw new Error('createEvent: Google returned an event with missing start/end');
@@ -120,11 +157,12 @@ export class GoogleCalendarService {
     // Use patch (not events.update) so only provided fields are sent — unspecified fields remain unchanged
     const requestBody: calendar_v3.Schema$Event = {};
     if (updates.title       !== undefined) requestBody.summary     = updates.title;
-    if (updates.start       !== undefined) requestBody.start       = { dateTime: updates.start };
-    if (updates.end         !== undefined) requestBody.end         = { dateTime: updates.end };
+    if (updates.start       !== undefined) requestBody.start       = updates.allDay ? { date: updates.start } : { dateTime: updates.start };
+    if (updates.end         !== undefined) requestBody.end         = updates.allDay ? { date: updates.end } : { dateTime: updates.end };
     if (updates.attendees   !== undefined) requestBody.attendees   = updates.attendees.map((email) => ({ email }));
     if (updates.description !== undefined) requestBody.description = updates.description;
     if (updates.location    !== undefined) requestBody.location    = updates.location;
+    if (updates.reminders   !== undefined) requestBody.reminders   = { useDefault: false, overrides: updates.reminders };
 
     const res = await this.calendar.events.patch({ calendarId: this.calendarId, eventId, requestBody });
     const event = normalizeEvent(res.data);
@@ -210,7 +248,17 @@ function normalizeEvent(event: calendar_v3.Schema$Event): CalendarEvent | null {
   const start = (allDay ? event.start?.date : event.start?.dateTime) ?? '';
   const end = (allDay ? event.end?.date : event.end?.dateTime) ?? '';
   if (!start || !end) return null;
-  const attendees = event.attendees?.map((a) => a.email).filter((e): e is string => Boolean(e));
+  const attendees = event.attendees
+    ?.map((a) => ({ email: a.email!, responseStatus: a.responseStatus as AttendeeInfo['responseStatus'] }))
+    .filter((a) => Boolean(a.email));
+  const reminders = event.reminders?.useDefault === false
+    ? event.reminders.overrides?.map((r) => ({
+        method: r.method as 'email' | 'popup',
+        minutes: r.minutes ?? 0,
+      }))
+    : undefined;
+  const meetLink = event.conferenceData?.entryPoints
+    ?.find((ep) => ep.entryPointType === 'video')?.uri ?? undefined;
   return {
     id: event.id ?? '',
     title: event.summary ?? '',
@@ -220,5 +268,8 @@ function normalizeEvent(event: calendar_v3.Schema$Event): CalendarEvent | null {
     attendees: attendees?.length ? attendees : undefined,
     location: event.location ?? undefined,
     description: event.description ?? undefined,
+    recurrence: event.recurrence ?? undefined,
+    reminders: reminders?.length ? reminders : undefined,
+    meetLink,
   };
 }

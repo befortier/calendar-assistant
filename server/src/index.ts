@@ -1,14 +1,13 @@
-import Anthropic from '@anthropic-ai/sdk';
 import express from 'express';
 import cors from 'cors';
+import Anthropic from '@anthropic-ai/sdk';
 import { config } from './config';
 import { Dependencies } from './dependencies';
 import { jwtMiddleware } from './auth/jwt';
 import { createAuthRouter } from './routes/auth';
-import { createCalendarRouter } from './routes/calendar';
 import { createChatRouter } from './routes/chat';
 import { GoogleTokenExchanger, realGoogleAuthFactory } from './auth/google';
-import { ClaudeService } from './services/claude';
+import { ClaudeAdapter } from './services/providers/claude/claudeAdapter';
 import { createGoogleCalendarService } from './services/googleCalendar';
 
 const deps = new Dependencies(config);
@@ -23,7 +22,7 @@ const googleExchanger = new GoogleTokenExchanger(
   {
     clientId: config.GOOGLE_CLIENT_ID,
     clientSecret: config.GOOGLE_CLIENT_SECRET,
-    redirectUri: 'postmessage',
+    redirectUri: `${config.ALLOWED_ORIGIN}/auth/callback`,
   },
   realGoogleAuthFactory,
 );
@@ -36,26 +35,22 @@ app.get('/health', (_req, res) => {
 });
 
 const auth = jwtMiddleware(config.JWT_SECRET);
-const claudeService = new ClaudeService(new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }));
 
-const calendarServiceFactory = (accessToken: string, refreshToken: string) =>
-  createGoogleCalendarService(accessToken, refreshToken, config);
+app.use('/calendar', auth);
+app.use('/chat', auth);
+app.use('/skills', auth);
 
-app.use(
-  '/calendar',
-  auth,
-  createCalendarRouter({ users: deps.client, calendarServiceFactory }),
-);
+const provider = new ClaudeAdapter(new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }));
+
 app.use(
   '/chat',
-  auth,
   createChatRouter({
     users: deps.client,
-    claudeService,
-    calendarServiceFactory,
+    provider,
+    calendarServiceFactory: (accessToken, refreshToken) =>
+      createGoogleCalendarService(accessToken, refreshToken, config),
   }),
 );
-app.use('/skills', auth);
 
 app.listen(config.PORT, () => {
   console.log(`Server running on port ${config.PORT}`);
