@@ -117,6 +117,85 @@ describe('dispatchTool: create_event', () => {
     });
     expect(JSON.parse(result).id).toBe('new-evt');
   });
+
+  it('forwards recurrence array to service.createEvent', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      id: 'rec-evt',
+      title: 'Weekly sync',
+      start: '2026-03-22T10:00:00Z',
+      end: '2026-03-22T10:30:00Z',
+      allDay: false,
+      recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO'],
+    });
+    const service = makeService({ createEvent: mockCreate });
+
+    await dispatchTool(
+      'create_event',
+      {
+        title: 'Weekly sync',
+        start: '2026-03-22T10:00:00Z',
+        end: '2026-03-22T10:30:00Z',
+        recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO'],
+      },
+      service,
+    );
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO'] }),
+    );
+  });
+
+  it('forwards reminders array to service.createEvent', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      id: 'rem-evt',
+      title: 'Team sync',
+      start: '2026-03-22T10:00:00Z',
+      end: '2026-03-22T10:30:00Z',
+      allDay: false,
+    });
+    const service = makeService({ createEvent: mockCreate });
+
+    await dispatchTool(
+      'create_event',
+      {
+        title: 'Team sync',
+        start: '2026-03-22T10:00:00Z',
+        end: '2026-03-22T10:30:00Z',
+        reminders: [{ method: 'popup', minutes: 15 }],
+      },
+      service,
+    );
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ reminders: [{ method: 'popup', minutes: 15 }] }),
+    );
+  });
+
+  it('forwards allDay boolean to service.createEvent', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      id: 'allday-evt',
+      title: 'Company holiday',
+      start: '2026-03-22',
+      end: '2026-03-23',
+      allDay: true,
+    });
+    const service = makeService({ createEvent: mockCreate });
+
+    await dispatchTool(
+      'create_event',
+      {
+        title: 'Company holiday',
+        start: '2026-03-22',
+        end: '2026-03-23',
+        allDay: true,
+      },
+      service,
+    );
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ allDay: true }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

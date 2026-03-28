@@ -67,4 +67,29 @@ describe('EventCard', () => {
     render(<EventCard action="create" event={noLocation} status="pending" onAccept={vi.fn()} onDecline={vi.fn()} />);
     expect(screen.queryByText('Room A')).not.toBeInTheDocument();
   });
+
+  it('renders multiple attendee emails from AttendeeInfo[] as comma-separated list', () => {
+    const multiAttendee = {
+      ...EVENT,
+      attendees: [
+        { email: 'alice@example.com', responseStatus: 'accepted' as const },
+        { email: 'bob@example.com', responseStatus: 'declined' as const },
+        { email: 'carol@example.com', responseStatus: 'tentative' as const },
+      ],
+    };
+    render(<EventCard action="create" event={multiAttendee} status="pending" onAccept={vi.fn()} onDecline={vi.fn()} />);
+    expect(screen.getByText('alice@example.com, bob@example.com, carol@example.com')).toBeInTheDocument();
+  });
+
+  it('hides attendees section when attendees is undefined', () => {
+    const noAttendees = { ...EVENT, attendees: undefined };
+    render(<EventCard action="create" event={noAttendees} status="pending" onAccept={vi.fn()} onDecline={vi.fn()} />);
+    expect(screen.queryByText('bob@example.com')).not.toBeInTheDocument();
+  });
+
+  it('hides attendees section when attendees is empty array', () => {
+    const emptyAttendees = { ...EVENT, attendees: [] };
+    render(<EventCard action="create" event={emptyAttendees} status="pending" onAccept={vi.fn()} onDecline={vi.fn()} />);
+    expect(screen.queryByText('bob@example.com')).not.toBeInTheDocument();
+  });
 });
