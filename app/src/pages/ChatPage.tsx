@@ -40,7 +40,7 @@ export default function ChatPage() {
           )}
           {status && (
             <div className="flex justify-start">
-              <div className="rounded-2xl bg-gray-100 px-4 py-2.5 text-sm text-gray-400">
+              <div className="rounded-2xl bg-gray-100 px-4 py-2.5 text-sm text-gray-400" role="status">
                 {status}
               </div>
             </div>

@@ -180,18 +180,19 @@ export function useChat() {
 
   const respondToProposal = useCallback(async (proposalId: string, accepted: boolean) => {
     if (!accepted) {
-      // Decline is local-only: remove the card
-      setItems((prev) => prev.filter((i) => !(i.type === 'event_proposal' && i.id === proposalId)));
+      // Decline is local-only: compute filtered list first to avoid stale ref reads
+      const filtered = itemsRef.current.filter((i) => !(i.type === 'event_proposal' && i.id === proposalId));
+      setItems(filtered);
 
       // Check if this was the last pending option — if so, notify agent
-      const remaining = itemsRef.current.filter(
-        (i) => i.type === 'event_proposal' && i.status === 'pending' && i.id !== proposalId,
+      const remaining = filtered.filter(
+        (i) => i.type === 'event_proposal' && i.status === 'pending',
       );
       if (remaining.length === 0) {
         const declineItem: MessageItem = {
           type: 'message', id: crypto.randomUUID(), role: 'user', content: 'No, cancel that.',
         };
-        const allItems = [...itemsRef.current.filter((i) => !(i.type === 'event_proposal' && i.id === proposalId)), declineItem];
+        const allItems = [...filtered, declineItem];
         setItems(allItems);
         await sendStream(allItems);
       }
