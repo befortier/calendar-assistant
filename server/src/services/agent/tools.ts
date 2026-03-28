@@ -48,9 +48,16 @@ export const calendarTools: ToolDefinition[] = [
     description: `Shows an interactive event card the user can accept or decline. This is display-only — it does not create or modify anything. Call once per option when presenting multiple choices.`,
     inputSchema: {
       type: 'object',
-      properties: eventProperties,
-      required: ['id', 'title', 'start', 'end'],
+      properties: {
+        id: { type: 'string', description: 'Event ID (empty string for new events)' },
+        title: { type: 'string', description: 'Event title' },
+        start: { type: 'string', description: 'Start datetime (ISO 8601)' },
+        end: { type: 'string', description: 'End datetime (ISO 8601)' },
+        attendees: { type: 'array', items: { type: 'string' }, description: 'Attendee emails' },
+      },
+      required: ['id', 'title', 'start', 'end', 'attendees'],
     },
+    strict: true,
   },
   {
     name: 'create_event',
