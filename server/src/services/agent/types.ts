@@ -46,7 +46,7 @@ export interface ToolCall {
  * Discriminated union ensures type safety at each role.
  */
 export type ChatMessage =
-  | { role: 'user'; content: string }
+  | { role: 'user'; content: string; metadata?: Record<string, unknown> }
   | { role: 'assistant'; text: string; toolCalls: ToolCall[] }
   | { role: 'tool_result'; toolCallId: string; content: string; isError?: boolean };
 

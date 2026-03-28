@@ -3,11 +3,23 @@ import { streamChat } from '../lib/streamChat';
 import type { CalendarEvent, SSEEvent } from '../lib/sse';
 import type { ProposalStatus, ProposalAction } from '../components/EventCard';
 
+export interface ProposalMetadata {
+  confirmedProposal: {
+    action: 'create' | 'update' | 'delete';
+    eventId: string;
+    title: string;
+    start: string;
+    end: string;
+    attendees?: string[];
+  };
+}
+
 export interface MessageItem {
   type: 'message';
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  metadata?: ProposalMetadata;
 }
 
 export interface ProposalItem {
@@ -21,10 +33,10 @@ export interface ProposalItem {
 
 export type ChatItem = MessageItem | ProposalItem;
 
-function extractMessages(items: ChatItem[]): { role: string; content: string }[] {
+function extractMessages(items: ChatItem[]): { role: string; content: string; metadata?: ProposalMetadata }[] {
   return items
     .filter((i): i is MessageItem => i.type === 'message')
-    .map(({ role, content }) => ({ role, content }));
+    .map(({ role, content, metadata }) => ({ role, content, ...(metadata && { metadata }) }));
 }
 
 function resolveProposal(items: ChatItem[], proposalId: string, accepted: boolean): ChatItem[] {
@@ -186,11 +198,25 @@ export function useChat() {
       return;
     }
 
-    // Accept: resolve group and send confirmation
+    // Accept: resolve group and send confirmation with metadata
+    const proposal = itemsRef.current.find(
+      (i): i is ProposalItem => i.type === 'event_proposal' && i.id === proposalId,
+    );
     const confirmText = buildConfirmText(itemsRef.current, proposalId, true);
     setItems((prev) => resolveProposal(prev, proposalId, true));
+    const metadata: ProposalMetadata | undefined = proposal ? {
+      confirmedProposal: {
+        action: proposal.action,
+        eventId: proposal.event.id,
+        title: proposal.event.title,
+        start: proposal.event.start,
+        end: proposal.event.end,
+        attendees: proposal.event.attendees?.map((a) => a.email),
+      },
+    } : undefined;
     const confirmItem: MessageItem = {
       type: 'message', id: crypto.randomUUID(), role: 'user', content: confirmText,
+      ...(metadata && { metadata }),
     };
     const allItems = [...itemsRef.current, confirmItem];
     setItems(allItems);

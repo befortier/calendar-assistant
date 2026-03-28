@@ -18,6 +18,7 @@ export interface ChatRouterDeps {
 const MessageSchema = z.object({
   role: z.enum(['user', 'assistant']),
   content: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 const ChatRequestSchema = z.object({
@@ -63,11 +64,17 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
     });
 
     try {
-      const chatMessages: import('../services/agent/types').ChatMessage[] = parsed.data.messages.map((m) =>
-        m.role === 'assistant'
-          ? { role: 'assistant' as const, text: m.content, toolCalls: [] }
-          : { role: 'user' as const, content: m.content },
-      );
+      const chatMessages: import('../services/agent/types').ChatMessage[] = parsed.data.messages.map((m) => {
+        if (m.role === 'assistant') {
+          return { role: 'assistant' as const, text: m.content, toolCalls: [] };
+        }
+        const msg: import('../services/agent/types').ChatMessage = { role: 'user' as const, content: m.content };
+        if (m.metadata) {
+          (msg as { metadata?: Record<string, unknown> }).metadata = m.metadata;
+          console.log('[chat] user message has metadata:', JSON.stringify(m.metadata));
+        }
+        return msg;
+      });
       await runAgentLoop(
         chatMessages,
         {

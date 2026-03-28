@@ -46,8 +46,13 @@ function toAnthropicTool(def: ToolDefinition): Anthropic.Tool {
 
 function toAnthropicMessage(msg: ChatMessage): Anthropic.MessageParam {
   switch (msg.role) {
-    case 'user':
-      return { role: 'user', content: msg.content };
+    case 'user': {
+      let content = msg.content;
+      if (msg.metadata) {
+        content += `\n\n<event_context>\n${JSON.stringify(msg.metadata)}\n</event_context>`;
+      }
+      return { role: 'user', content };
+    }
     case 'assistant': {
       const content: Anthropic.ContentBlockParam[] = [];
       if (msg.text) content.push({ type: 'text', text: msg.text });
