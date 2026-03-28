@@ -63,8 +63,13 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
     });
 
     try {
+      const chatMessages: import('../services/agent/types').ChatMessage[] = parsed.data.messages.map((m) =>
+        m.role === 'assistant'
+          ? { role: 'assistant' as const, text: m.content, toolCalls: [] }
+          : { role: 'user' as const, content: m.content },
+      );
       await runAgentLoop(
-        parsed.data.messages.map((m) => ({ role: m.role, content: m.content })),
+        chatMessages,
         {
           provider: deps.provider,
           tools: calendarTools,

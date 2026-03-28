@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { runAgentLoop, type AgentLoopDeps } from './agentLoop';
 import type { LLMProvider, StreamResult, ChatMessage, ToolDefinition } from './types';
 import { StopReason } from './types';

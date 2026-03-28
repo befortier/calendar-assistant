@@ -49,7 +49,7 @@ function toAnthropicMessage(msg: ChatMessage): Anthropic.MessageParam {
     case 'user':
       return { role: 'user', content: msg.content };
     case 'assistant': {
-      const content: Anthropic.ContentBlock[] = [];
+      const content: Anthropic.ContentBlockParam[] = [];
       if (msg.text) content.push({ type: 'text', text: msg.text });
       for (const tc of msg.toolCalls) {
         content.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input });
