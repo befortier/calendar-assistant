@@ -62,6 +62,7 @@ export interface CreateEventInput {
   location?: string;
   recurrence?: string[];
   reminders?: EventReminder[];
+  allDay?: boolean;
 }
 
 export interface UpdateEventInput {
@@ -72,6 +73,7 @@ export interface UpdateEventInput {
   description?: string;
   location?: string;
   reminders?: EventReminder[];
+  allDay?: boolean;
 }
 
 export class GoogleCalendarService {
@@ -119,8 +121,8 @@ export class GoogleCalendarService {
   async createEvent(input: CreateEventInput): Promise<CalendarEvent> {
     const requestBody: calendar_v3.Schema$Event = {
       summary: input.title,
-      start: { dateTime: input.start },
-      end: { dateTime: input.end },
+      start: input.allDay ? { date: input.start } : { dateTime: input.start },
+      end: input.allDay ? { date: input.end } : { dateTime: input.end },
       attendees: input.attendees?.map((email) => ({ email })),
       description: input.description,
       location: input.location,
@@ -153,8 +155,8 @@ export class GoogleCalendarService {
     // Use patch (not events.update) so only provided fields are sent — unspecified fields remain unchanged
     const requestBody: calendar_v3.Schema$Event = {};
     if (updates.title       !== undefined) requestBody.summary     = updates.title;
-    if (updates.start       !== undefined) requestBody.start       = { dateTime: updates.start };
-    if (updates.end         !== undefined) requestBody.end         = { dateTime: updates.end };
+    if (updates.start       !== undefined) requestBody.start       = updates.allDay ? { date: updates.start } : { dateTime: updates.start };
+    if (updates.end         !== undefined) requestBody.end         = updates.allDay ? { date: updates.end } : { dateTime: updates.end };
     if (updates.attendees   !== undefined) requestBody.attendees   = updates.attendees.map((email) => ({ email }));
     if (updates.description !== undefined) requestBody.description = updates.description;
     if (updates.location    !== undefined) requestBody.location    = updates.location;

@@ -74,6 +74,7 @@ async function handleCreateEvent(
     location: input.location != null ? asString(input.location, 'location') : undefined,
     recurrence: input.recurrence != null ? asStringArray(input.recurrence, 'recurrence') : undefined,
     reminders: input.reminders != null ? asReminders(input.reminders, 'reminders') : undefined,
+    allDay: input.allDay != null ? Boolean(input.allDay) : undefined,
   };
   const event = await service.createEvent(createInput);
   return JSON.stringify(event);
@@ -92,6 +93,7 @@ async function handleUpdateEvent(
   if (input.description != null) updates.description = asString(input.description, 'description');
   if (input.location != null) updates.location = asString(input.location, 'location');
   if (input.reminders != null) updates.reminders = asReminders(input.reminders, 'reminders');
+  if (input.allDay != null) updates.allDay = Boolean(input.allDay);
   const event = await service.updateEvent(id, updates);
   return JSON.stringify(event);
 }
