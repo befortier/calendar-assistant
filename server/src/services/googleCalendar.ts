@@ -11,6 +11,7 @@ export interface CalendarEvent {
   attendees?: string[];
   location?: string;
   description?: string;
+  recurrence?: string[];
 }
 
 export interface FreeSlot {
@@ -46,6 +47,7 @@ export interface CreateEventInput {
   attendees?: string[];
   description?: string;
   location?: string;
+  recurrence?: string[];
 }
 
 export interface UpdateEventInput {
@@ -109,6 +111,7 @@ export class GoogleCalendarService {
         attendees: input.attendees?.map((email) => ({ email })),
         description: input.description,
         location: input.location,
+        recurrence: input.recurrence,
       },
     });
     const event = normalizeEvent(res.data);
@@ -220,5 +223,6 @@ function normalizeEvent(event: calendar_v3.Schema$Event): CalendarEvent | null {
     attendees: attendees?.length ? attendees : undefined,
     location: event.location ?? undefined,
     description: event.description ?? undefined,
+    recurrence: event.recurrence ?? undefined,
   };
 }

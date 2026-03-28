@@ -54,6 +54,7 @@ export async function dispatchTool(
         attendees: input.attendees != null ? asStringArray(input.attendees, 'attendees') : undefined,
         description: input.description != null ? asString(input.description, 'description') : undefined,
         location: input.location != null ? asString(input.location, 'location') : undefined,
+        recurrence: input.recurrence != null ? asStringArray(input.recurrence, 'recurrence') : undefined,
       };
       const event = await service.createEvent(createInput);
       return JSON.stringify(event);

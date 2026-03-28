@@ -53,6 +53,7 @@ export const calendarTools: ToolDefinition[] = [
         attendees: { type: 'array', items: { type: 'string' }, description: 'Attendee emails' },
         description: { type: 'string', description: 'Event description' },
         location: { type: 'string', description: 'Event location' },
+        recurrence: { type: 'array', items: { type: 'string' }, description: 'Recurrence rules in RFC 5545 RRULE format (e.g. ["RRULE:FREQ=WEEKLY;BYDAY=MO"])' },
       },
       required: ['title', 'start', 'end'],
     },
