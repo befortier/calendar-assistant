@@ -91,8 +91,8 @@ describe('runAgentLoop', () => {
     expect(provider.stream).toHaveBeenCalledTimes(2);
   });
 
-  // c. Proposals
-  it('emits event_proposal and does NOT dispatch propose_event', async () => {
+  // c. Proposals — accumulated then flushed on end_turn
+  it('emits event_proposal on end_turn and does NOT dispatch propose_event', async () => {
     const proposal = {
       id: 'tc-p1',
       name: 'propose_event',
@@ -104,6 +104,7 @@ describe('runAgentLoop', () => {
     };
     const provider = mockProvider([
       { stopReason: StopReason.ToolUse, text: '', toolCalls: [proposal] },
+      { stopReason: StopReason.EndTurn, text: '', toolCalls: [] },
     ]);
     const dispatchTool = vi.fn();
     const deps = makeDeps({ provider, dispatchTool });
@@ -124,10 +125,10 @@ describe('runAgentLoop', () => {
     });
     expect(events[events.length - 1]).toEqual({ event: SSEEventType.Done, data: {} });
     expect(dispatchTool).not.toHaveBeenCalled();
-    expect(provider.stream).toHaveBeenCalledTimes(1);
+    expect(provider.stream).toHaveBeenCalledTimes(2);
   });
 
-  // d. Multiple proposals get group UUID
+  // d. Multiple proposals across iterations get group UUID
   it('assigns same group UUID to multiple proposals', async () => {
     const proposals = [
       {
@@ -143,6 +144,7 @@ describe('runAgentLoop', () => {
     ];
     const provider = mockProvider([
       { stopReason: StopReason.ToolUse, text: '', toolCalls: proposals },
+      { stopReason: StopReason.EndTurn, text: '', toolCalls: [] },
     ]);
     const deps = makeDeps({ provider });
     const events: SSEEvent[] = [];
@@ -159,6 +161,36 @@ describe('runAgentLoop', () => {
     const group2 = (proposalEvents[1].data as { group?: string }).group;
     expect(group1).toBeDefined();
     expect(group1).toBe(group2);
+  });
+
+  // d2. Proposals sent one-per-iteration are accumulated
+  it('accumulates proposals across multiple iterations', async () => {
+    const provider = mockProvider([
+      { stopReason: StopReason.ToolUse, text: 'Option 1:', toolCalls: [
+        { id: 'p1', name: 'propose_event', input: { title: 'Sync', start: '2026-03-30T09:00:00Z', end: '2026-03-30T09:30:00Z' } },
+      ]},
+      { stopReason: StopReason.ToolUse, text: 'Option 2:', toolCalls: [
+        { id: 'p2', name: 'propose_event', input: { title: 'Sync', start: '2026-03-30T10:00:00Z', end: '2026-03-30T10:30:00Z' } },
+      ]},
+      { stopReason: StopReason.ToolUse, text: 'Option 3:', toolCalls: [
+        { id: 'p3', name: 'propose_event', input: { title: 'Sync', start: '2026-03-30T11:00:00Z', end: '2026-03-30T11:30:00Z' } },
+      ]},
+      { stopReason: StopReason.EndTurn, text: 'Pick one!', toolCalls: [] },
+    ]);
+    const dispatchTool = vi.fn();
+    const deps = makeDeps({ provider, dispatchTool });
+    const events: SSEEvent[] = [];
+
+    await runAgentLoop(
+      [{ role: 'user', content: 'Give me 3 options' }],
+      deps,
+      collectEvents(events),
+    );
+
+    const proposalEvents = events.filter((e) => e.event === SSEEventType.EventProposal);
+    expect(proposalEvents).toHaveLength(3);
+    expect(dispatchTool).not.toHaveBeenCalled();
+    expect(provider.stream).toHaveBeenCalledTimes(4);
   });
 
   // e. Tool dispatch error

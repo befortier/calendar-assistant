@@ -28,7 +28,10 @@ export class ClaudeAdapter implements LLMProvider {
       }
     }
 
-    return normalizeResponse(await stream.finalMessage());
+    const finalMsg = await stream.finalMessage();
+    const toolBlocks = finalMsg.content.filter((b) => b.type === 'tool_use');
+    console.log(`[claude] stop=${finalMsg.stop_reason} text=${finalMsg.content.filter((b) => b.type === 'text').length} tools=${toolBlocks.map((b) => (b as { name: string }).name).join(',') || 'none'}`);
+    return normalizeResponse(finalMsg);
   }
 }
 

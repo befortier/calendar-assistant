@@ -20,6 +20,7 @@ export async function runAgentLoop(
 ): Promise<void> {
   const system = deps.buildSystemPrompt();
   const messages: ChatMessage[] = [...inputMessages];
+  const pendingProposals: ToolCall[] = [];
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     emit({ event: SSEEventType.Status, data: { type: 'thinking' } });
@@ -32,6 +33,10 @@ export async function runAgentLoop(
     );
 
     if (result.stopReason === StopReason.EndTurn) {
+      // Flush any accumulated proposals before finishing
+      if (pendingProposals.length > 0) {
+        emitProposals(pendingProposals.map(sanitizeProposal), emit);
+      }
       emit({ event: SSEEventType.Done, data: {} });
       return;
     }
@@ -43,11 +48,24 @@ export async function runAgentLoop(
     }
 
     const proposals = result.toolCalls.filter((tc) => isProposalTool(tc.name));
+    const otherTools = result.toolCalls.filter((tc) => !isProposalTool(tc.name));
+
     if (proposals.length > 0) {
-      const sanitized = proposals.map(sanitizeProposal);
-      emitProposals(sanitized, emit);
-      emit({ event: SSEEventType.Done, data: {} });
-      return;
+      // Accumulate proposals and send tool results so the model can continue
+      pendingProposals.push(...proposals);
+      messages.push({ role: 'assistant', text: result.text, toolCalls: result.toolCalls });
+      messages.push(...proposals.map((tc) => ({
+        role: 'tool_result' as const,
+        toolCallId: tc.id,
+        content: 'Proposal shown to user.',
+      })));
+
+      // If there were also non-proposal tools in the same response, dispatch them
+      if (otherTools.length > 0) {
+        const toolResults = await dispatchAll(otherTools, deps.dispatchTool, emit);
+        messages.push(...toolResults);
+      }
+      continue;
     }
 
     const toolResults = await dispatchAll(result.toolCalls, deps.dispatchTool, emit);
