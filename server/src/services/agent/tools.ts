@@ -1,16 +1,5 @@
 import type { ToolDefinition } from './types';
 
-/** Shared event properties used across propose_event, create_event, update_event, delete_event. */
-const eventProperties = {
-  id: { type: 'string', description: 'Event ID from get_events or create_event (empty string for new events)' },
-  title: { type: 'string', description: 'Event title' },
-  start: { type: 'string', description: 'Start datetime (ISO 8601 with timezone offset)' },
-  end: { type: 'string', description: 'End datetime (ISO 8601 with timezone offset)' },
-  attendees: { type: 'array', items: { type: 'string' }, description: 'Email addresses of attendees' },
-  description: { type: 'string', description: 'Event description' },
-  location: { type: 'string', description: 'Event location' },
-} as const;
-
 export const calendarTools: ToolDefinition[] = [
   {
     name: 'get_events',
@@ -31,11 +20,7 @@ export const calendarTools: ToolDefinition[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        emails: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Email addresses to query.',
-        },
+        emails: { type: 'array', items: { type: 'string' }, description: 'Email addresses to query.' },
         start: { type: 'string', description: 'Start of range (ISO 8601)' },
         end: { type: 'string', description: 'End of range (ISO 8601)' },
       },
@@ -64,8 +49,15 @@ export const calendarTools: ToolDefinition[] = [
     description: `Creates a new event on the user's primary calendar. Only call after the user has confirmed. Returns the created event with its id.`,
     inputSchema: {
       type: 'object',
-      properties: eventProperties,
-      required: ['id', 'title', 'start', 'end'],
+      properties: {
+        title: { type: 'string', description: 'Event title' },
+        start: { type: 'string', description: 'Start datetime (ISO 8601)' },
+        end: { type: 'string', description: 'End datetime (ISO 8601)' },
+        attendees: { type: 'array', items: { type: 'string' }, description: 'Attendee emails' },
+        description: { type: 'string', description: 'Event description' },
+        location: { type: 'string', description: 'Event location' },
+      },
+      required: ['title', 'start', 'end'],
     },
     strict: true,
   },
@@ -74,7 +66,15 @@ export const calendarTools: ToolDefinition[] = [
     description: `Updates an existing event. Partial patch — only provided fields change. Only call after the user has confirmed. The id must come from a prior get_events or create_event result.`,
     inputSchema: {
       type: 'object',
-      properties: eventProperties,
+      properties: {
+        id: { type: 'string', description: 'Event ID from get_events or create_event' },
+        title: { type: 'string', description: 'New title' },
+        start: { type: 'string', description: 'New start datetime (ISO 8601)' },
+        end: { type: 'string', description: 'New end datetime (ISO 8601)' },
+        attendees: { type: 'array', items: { type: 'string' }, description: 'Replacement attendee list' },
+        description: { type: 'string', description: 'New description' },
+        location: { type: 'string', description: 'New location' },
+      },
       required: ['id'],
     },
     strict: true,
@@ -84,7 +84,9 @@ export const calendarTools: ToolDefinition[] = [
     description: `Deletes an event. Irreversible. Only call after the user has confirmed. The id must come from a prior get_events or create_event result.`,
     inputSchema: {
       type: 'object',
-      properties: eventProperties,
+      properties: {
+        id: { type: 'string', description: 'Event ID from get_events or create_event' },
+      },
       required: ['id'],
     },
     strict: true,
