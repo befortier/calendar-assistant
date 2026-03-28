@@ -637,6 +637,7 @@ describe('GoogleCalendarService.createEvent', () => {
 
     const call = mockInsert.mock.calls[0][0];
     expect(call.requestBody.conferenceData).toBeUndefined();
+    expect(call.conferenceDataVersion).toBeUndefined();
   });
 
   it('uses { date } start/end when allDay is true', async () => {

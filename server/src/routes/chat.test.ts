@@ -108,4 +108,37 @@ describe('POST /chat', () => {
     expect(res.status).toBe(401);
     expect(res.body.error).toContain('not found');
   });
+
+  it('returns 401 when user has no refresh token', async () => {
+    const noRefreshDeps = makeDeps({
+      users: {
+        upsertUser: vi.fn(),
+        getUserById: vi.fn().mockReturnValue({ ...FAKE_USER, refreshToken: null }),
+      },
+    });
+    app = makeApp(noRefreshDeps);
+
+    const res = await request(app)
+      .post('/chat')
+      .send({ messages: [{ role: 'user', content: 'Hi' }], timezone: 'UTC' });
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toContain('reauthorize');
+  });
+
+  it('defaults timezone to UTC when not provided', async () => {
+    const res = await request(app)
+      .post('/chat')
+      .send({ messages: [{ role: 'user', content: 'Hi' }] });
+
+    expect(res.headers['content-type']).toContain('text/event-stream');
+  });
+
+  it('returns 400 for invalid timezone', async () => {
+    const res = await request(app)
+      .post('/chat')
+      .send({ messages: [{ role: 'user', content: 'Hi' }], timezone: 'Not/A/Timezone' });
+
+    expect(res.status).toBe(400);
+  });
 });

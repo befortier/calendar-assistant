@@ -23,7 +23,7 @@ const MessageSchema = z.object({
 
 const ChatRequestSchema = z.object({
   messages: z.array(MessageSchema).min(1),
-  timezone: z.string().refine((tz) => {
+  timezone: z.string().default('UTC').refine((tz) => {
     try { Intl.DateTimeFormat(undefined, { timeZone: tz }); return true; } catch { return false; }
   }, { message: 'Invalid IANA timezone' }),
 });
@@ -44,6 +44,11 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
       return;
     }
 
+    if (!user.refreshToken) {
+      res.status(401).json({ error: 'Google session expired — please reauthorize' });
+      return;
+    }
+
     const parsed = ChatRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
@@ -52,7 +57,7 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
 
     const calendarService = deps.calendarServiceFactory(
       user.accessToken,
-      user.refreshToken ?? '',
+      user.refreshToken,
     );
 
     res.setHeader('Content-Type', 'text/event-stream');

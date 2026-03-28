@@ -119,7 +119,28 @@ describe('ClaudeAdapter', () => {
     });
   });
 
-  // d. Text extraction
+  // d. Empty assistant content gets fallback text block
+  it('sends non-empty content for assistant message with empty text and no tool calls', async () => {
+    const stream = mockStream([], {
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: 'ok' }],
+    });
+    const client = mockClient(stream);
+    const adapter = new ClaudeAdapter(client);
+    const messages: ChatMessage[] = [
+      { role: 'assistant', text: '', toolCalls: [] },
+      { role: 'user', content: 'Hi' },
+    ];
+
+    await adapter.stream('sys', messages, TOOLS, vi.fn());
+
+    const call = (client.messages.stream as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const assistantMsg = call.messages.find((m: { role: string }) => m.role === 'assistant');
+    expect(assistantMsg.content.length).toBeGreaterThan(0);
+    expect(assistantMsg.content[0]).toEqual({ type: 'text', text: '' });
+  });
+
+  // e. Text extraction
   it('extracts and joins text from text content blocks', async () => {
     const stream = mockStream([], {
       stop_reason: 'end_turn',

@@ -146,7 +146,7 @@ export class GoogleCalendarService {
     const res = await this.calendar.events.insert({
       calendarId: this.calendarId,
       requestBody,
-      conferenceDataVersion: 1,
+      ...(requestBody.conferenceData ? { conferenceDataVersion: 1 } : {}),
     });
     const event = normalizeEvent(res.data);
     if (!event) throw new Error('createEvent: Google returned an event with missing start/end');

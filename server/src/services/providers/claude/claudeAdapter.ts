@@ -62,6 +62,7 @@ function toAnthropicMessage(msg: ChatMessage): Anthropic.MessageParam {
       for (const tc of msg.toolCalls) {
         content.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input });
       }
+      if (content.length === 0) content.push({ type: 'text', text: '' });
       return { role: 'assistant', content };
     }
     case 'tool_result':
