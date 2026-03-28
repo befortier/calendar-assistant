@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import type { calendar_v3 } from 'googleapis';
 import type { Config } from '../env-schema';
+import { randomUUID } from 'crypto';
 
 export interface AttendeeInfo {
   email: string;
@@ -23,6 +24,7 @@ export interface CalendarEvent {
   description?: string;
   recurrence?: string[];
   reminders?: EventReminder[];
+  meetLink?: string;
 }
 
 export interface FreeSlot {
@@ -115,20 +117,32 @@ export class GoogleCalendarService {
   }
 
   async createEvent(input: CreateEventInput): Promise<CalendarEvent> {
+    const requestBody: calendar_v3.Schema$Event = {
+      summary: input.title,
+      start: { dateTime: input.start },
+      end: { dateTime: input.end },
+      attendees: input.attendees?.map((email) => ({ email })),
+      description: input.description,
+      location: input.location,
+      recurrence: input.recurrence,
+      reminders: input.reminders
+        ? { useDefault: false, overrides: input.reminders }
+        : undefined,
+    };
+
+    if (input.attendees?.length) {
+      requestBody.conferenceData = {
+        createRequest: {
+          requestId: randomUUID(),
+          conferenceSolutionKey: { type: 'hangoutsMeet' },
+        },
+      };
+    }
+
     const res = await this.calendar.events.insert({
       calendarId: this.calendarId,
-      requestBody: {
-        summary: input.title,
-        start: { dateTime: input.start },
-        end: { dateTime: input.end },
-        attendees: input.attendees?.map((email) => ({ email })),
-        description: input.description,
-        location: input.location,
-        recurrence: input.recurrence,
-        reminders: input.reminders
-          ? { useDefault: false, overrides: input.reminders }
-          : undefined,
-      },
+      requestBody,
+      conferenceDataVersion: 1,
     });
     const event = normalizeEvent(res.data);
     if (!event) throw new Error('createEvent: Google returned an event with missing start/end');
@@ -239,6 +253,8 @@ function normalizeEvent(event: calendar_v3.Schema$Event): CalendarEvent | null {
         minutes: r.minutes ?? 0,
       }))
     : undefined;
+  const meetLink = event.conferenceData?.entryPoints
+    ?.find((ep) => ep.entryPointType === 'video')?.uri ?? undefined;
   return {
     id: event.id ?? '',
     title: event.summary ?? '',
@@ -250,5 +266,6 @@ function normalizeEvent(event: calendar_v3.Schema$Event): CalendarEvent | null {
     description: event.description ?? undefined,
     recurrence: event.recurrence ?? undefined,
     reminders: reminders?.length ? reminders : undefined,
+    meetLink,
   };
 }
