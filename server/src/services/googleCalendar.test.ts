@@ -116,7 +116,7 @@ describe('GoogleCalendarService.getEvents', () => {
     expect(events).toEqual([]);
   });
 
-  it('populates attendees as email strings when event has attendees', async () => {
+  it('populates attendees as objects with email and responseStatus when event has attendees', async () => {
     const service = new GoogleCalendarService(
       makeCalendar([
         {
@@ -134,7 +134,10 @@ describe('GoogleCalendarService.getEvents', () => {
 
     const events = await service.getEvents(START, END);
 
-    expect(events[0].attendees).toEqual(['alice@x.com', 'bob@x.com']);
+    expect(events[0].attendees).toEqual([
+      { email: 'alice@x.com', responseStatus: 'accepted' },
+      { email: 'bob@x.com', responseStatus: 'needsAction' },
+    ]);
   });
 
   it('sets attendees to undefined when event has no attendees', async () => {

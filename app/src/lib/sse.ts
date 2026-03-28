@@ -1,10 +1,15 @@
+export interface AttendeeInfo {
+  email: string;
+  responseStatus?: 'accepted' | 'declined' | 'tentative' | 'needsAction';
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;
   start: string;
   end: string;
   allDay: boolean;
-  attendees?: string[];
+  attendees?: AttendeeInfo[];
   location?: string;
   description?: string;
 }

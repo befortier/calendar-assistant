@@ -2,13 +2,18 @@ import { google } from 'googleapis';
 import type { calendar_v3 } from 'googleapis';
 import type { Config } from '../env-schema';
 
+export interface AttendeeInfo {
+  email: string;
+  responseStatus?: 'accepted' | 'declined' | 'tentative' | 'needsAction';
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;
   start: string;
   end: string;
   allDay: boolean;
-  attendees?: string[];
+  attendees?: AttendeeInfo[];
   location?: string;
   description?: string;
   recurrence?: string[];
@@ -213,7 +218,9 @@ function normalizeEvent(event: calendar_v3.Schema$Event): CalendarEvent | null {
   const start = (allDay ? event.start?.date : event.start?.dateTime) ?? '';
   const end = (allDay ? event.end?.date : event.end?.dateTime) ?? '';
   if (!start || !end) return null;
-  const attendees = event.attendees?.map((a) => a.email).filter((e): e is string => Boolean(e));
+  const attendees = event.attendees
+    ?.map((a) => ({ email: a.email!, responseStatus: a.responseStatus as AttendeeInfo['responseStatus'] }))
+    .filter((a) => Boolean(a.email));
   return {
     id: event.id ?? '',
     title: event.summary ?? '',

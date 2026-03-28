@@ -45,7 +45,7 @@ export default function EventCard({ action, event, status, onAccept, onDecline }
 
       {event.attendees && event.attendees.length > 0 && (
         <p className="mt-1 text-xs text-gray-600">
-          {event.attendees.join(', ')}
+          {event.attendees.map(a => a.email).join(', ')}
         </p>
       )}
 

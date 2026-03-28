@@ -10,7 +10,7 @@ const EVENT: CalendarEvent = {
   start: '2026-03-26T09:00:00Z',
   end: '2026-03-26T09:30:00Z',
   allDay: false,
-  attendees: ['bob@example.com'],
+  attendees: [{ email: 'bob@example.com', responseStatus: 'accepted' }],
   location: 'Room A',
 };
 
