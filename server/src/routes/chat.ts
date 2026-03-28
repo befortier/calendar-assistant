@@ -73,7 +73,7 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
         {
           provider: deps.provider,
           tools: calendarTools,
-          dispatchTool: (name, input) => dispatchTool(name, input, calendarService),
+          dispatchTool: (name, input) => dispatchTool(name, input, calendarService, parsed.data.timezone),
           buildSystemPrompt: () =>
             buildSystemPrompt({ email: user.email, timezone: parsed.data.timezone }),
         },

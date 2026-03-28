@@ -64,6 +64,7 @@ async function handleGetFreebusy(
 async function handleCreateEvent(
   input: Record<string, unknown>,
   service: GoogleCalendarService,
+  userTimeZone?: string,
 ): Promise<string> {
   const createInput: CreateEventInput = {
     title: asString(input.title, 'title'),
@@ -75,6 +76,7 @@ async function handleCreateEvent(
     recurrence: input.recurrence != null ? asStringArray(input.recurrence, 'recurrence') : undefined,
     reminders: input.reminders != null ? asReminders(input.reminders, 'reminders') : undefined,
     allDay: input.allDay != null ? Boolean(input.allDay) : undefined,
+    timeZone: userTimeZone,
   };
   const event = await service.createEvent(createInput);
   return JSON.stringify(event);
@@ -111,11 +113,12 @@ export async function dispatchTool(
   name: string,
   input: Record<string, unknown>,
   service: GoogleCalendarService,
+  userTimeZone?: string,
 ): Promise<string> {
   switch (name) {
     case 'get_events':    return handleGetEvents(input, service);
     case 'get_freebusy':  return handleGetFreebusy(input, service);
-    case 'create_event':  return handleCreateEvent(input, service);
+    case 'create_event':  return handleCreateEvent(input, service, userTimeZone);
     case 'update_event':  return handleUpdateEvent(input, service);
     case 'delete_event':  return handleDeleteEvent(input, service);
     default:              throw new Error(`Unknown tool: ${name}`);

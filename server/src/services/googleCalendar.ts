@@ -63,6 +63,7 @@ export interface CreateEventInput {
   recurrence?: string[];
   reminders?: EventReminder[];
   allDay?: boolean;
+  timeZone?: string;
 }
 
 export interface UpdateEventInput {
@@ -119,10 +120,11 @@ export class GoogleCalendarService {
   }
 
   async createEvent(input: CreateEventInput): Promise<CalendarEvent> {
+    const timeZone = input.timeZone;
     const requestBody: calendar_v3.Schema$Event = {
       summary: input.title,
-      start: input.allDay ? { date: input.start } : { dateTime: input.start },
-      end: input.allDay ? { date: input.end } : { dateTime: input.end },
+      start: input.allDay ? { date: input.start } : { dateTime: input.start, ...(timeZone && { timeZone }) },
+      end: input.allDay ? { date: input.end } : { dateTime: input.end, ...(timeZone && { timeZone }) },
       attendees: input.attendees?.map((email) => ({ email })),
       description: input.description,
       location: input.location,
