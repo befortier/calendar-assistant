@@ -9,7 +9,7 @@ import { useAuthStore } from '../stores/auth';
 import { useCalendarStore } from '../stores/calendar';
 
 export default function ChatPage() {
-  const { items, loading, status, error, bottomRef, sendMessage, respondToProposal, removeFromBatch, respondToBatch } = useChat();
+  const { items, loading, status, error, bottomRef, sendMessage, respondToProposal, removeFromBatch, respondToBatch, clearChat } = useChat();
   const logout = useAuthStore((s) => s.logout);
   const clearCalendar = useCalendarStore((s) => s.clearCalendar);
 
@@ -23,7 +23,12 @@ export default function ChatPage() {
       <header className="flex items-center justify-between border-b bg-white px-4 py-3">
         <h1 className="text-lg font-semibold text-gray-900">Calendar Assistant</h1>
         <div className="flex items-center gap-4">
-          <CalendarPicker />
+          <CalendarPicker hasMessages={items.length > 0} onNewChat={clearChat} />
+          {items.length > 0 && (
+            <button type="button" onClick={clearChat} className="text-sm text-gray-500 transition hover:text-gray-700">
+              New Chat
+            </button>
+          )}
           <Link to="/preferences" className="text-sm text-gray-500 transition hover:text-gray-700">
             Preferences
           </Link>
