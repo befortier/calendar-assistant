@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import ChatBubble from '../components/ChatBubble';
 import ChatInput from '../components/ChatInput';
 import EventCard from '../components/EventCard';
@@ -13,9 +14,14 @@ export default function ChatPage() {
     <div className="flex h-screen flex-col bg-gray-50">
       <header className="flex items-center justify-between border-b bg-white px-4 py-3">
         <h1 className="text-lg font-semibold text-gray-900">Calendar Assistant</h1>
-        <button type="button" onClick={logout} className="text-sm text-gray-500 transition hover:text-gray-700">
-          Sign out
-        </button>
+        <div className="flex items-center gap-4">
+          <Link to="/preferences" className="text-sm text-gray-500 transition hover:text-gray-700">
+            Preferences
+          </Link>
+          <button type="button" onClick={logout} className="text-sm text-gray-500 transition hover:text-gray-700">
+            Sign out
+          </button>
+        </div>
       </header>
 
       <main className="flex-1 overflow-y-auto px-4 py-6">

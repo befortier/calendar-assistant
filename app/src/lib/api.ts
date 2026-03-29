@@ -68,4 +68,12 @@ export class ApiClient {
     const res = await this.http.delete<T>(url, config);
     return res.data;
   }
+
+  async getPreferences(): Promise<{ content: string }> {
+    return this.get<{ content: string }>('/preferences');
+  }
+
+  async updatePreferences(content: string): Promise<{ content: string }> {
+    return this.put<{ content: string }>('/preferences', { content });
+  }
 }

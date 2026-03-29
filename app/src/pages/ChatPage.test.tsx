@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import ChatPage from './ChatPage';
+
+function renderPage() {
+  return render(<MemoryRouter><ChatPage /></MemoryRouter>);
+}
 
 // Mock streamChat to simulate SSE events
 const mockStreamChat = vi.fn();
@@ -21,12 +26,12 @@ describe('ChatPage', () => {
   });
 
   it('renders empty state', () => {
-    render(<ChatPage />);
+    renderPage();
     expect(screen.getByText(/ask me anything about your calendar/i)).toBeInTheDocument();
   });
 
   it('renders header with sign out button', () => {
-    render(<ChatPage />);
+    renderPage();
     expect(screen.getByText('Calendar Assistant')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
   });
@@ -35,7 +40,7 @@ describe('ChatPage', () => {
     mockStreamChat.mockImplementation(async (_msgs: unknown, _tz: unknown, onEvent: (e: unknown) => void) => {
       onEvent({ event: 'done', data: {} });
     });
-    render(<ChatPage />);
+    renderPage();
 
     await userEvent.type(screen.getByLabelText('Chat message'), 'Hello');
     await userEvent.click(screen.getByRole('button', { name: /send/i }));
@@ -49,7 +54,7 @@ describe('ChatPage', () => {
       onEvent({ event: 'delta', data: { text: '3 meetings.' } });
       onEvent({ event: 'done', data: {} });
     });
-    render(<ChatPage />);
+    renderPage();
 
     await userEvent.type(screen.getByLabelText('Chat message'), 'Hi');
     await userEvent.click(screen.getByRole('button', { name: /send/i }));
@@ -64,7 +69,7 @@ describe('ChatPage', () => {
       onEvent({ event: 'tool_call', data: { tool: 'get_events' } });
       // Don't emit done — status should be visible
     });
-    render(<ChatPage />);
+    renderPage();
 
     await userEvent.type(screen.getByLabelText('Chat message'), 'Hi');
     await userEvent.click(screen.getByRole('button', { name: /send/i }));
@@ -86,7 +91,7 @@ describe('ChatPage', () => {
       });
       onEvent({ event: 'done', data: {} });
     });
-    render(<ChatPage />);
+    renderPage();
 
     await userEvent.type(screen.getByLabelText('Chat message'), 'Create standup');
     await userEvent.click(screen.getByRole('button', { name: /send/i }));
@@ -100,7 +105,7 @@ describe('ChatPage', () => {
 
   it('shows error on stream failure', async () => {
     mockStreamChat.mockRejectedValue(new Error('Network error'));
-    render(<ChatPage />);
+    renderPage();
 
     await userEvent.type(screen.getByLabelText('Chat message'), 'Hi');
     await userEvent.click(screen.getByRole('button', { name: /send/i }));
@@ -111,7 +116,7 @@ describe('ChatPage', () => {
   });
 
   it('calls logout when sign out clicked', async () => {
-    render(<ChatPage />);
+    renderPage();
     await userEvent.click(screen.getByRole('button', { name: /sign out/i }));
     expect(mockLogout).toHaveBeenCalled();
   });
