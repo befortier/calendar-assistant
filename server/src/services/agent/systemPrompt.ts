@@ -2,11 +2,15 @@ export interface UserContext {
   email: string;
   timezone: string;
   now?: Date;
+  preferences?: string;
 }
 
 export function buildSystemPrompt(ctx: UserContext): string {
   const now = ctx.now ?? new Date();
-  return `You are a calendar assistant for ${ctx.email}. You help read, schedule, update, and delete Google Calendar events. Be concise and professional.
+  const preferencesSection = ctx.preferences?.trim()
+    ? `\n\n## User preferences\n\n${ctx.preferences.trim()}\n\nApply these preferences when scheduling or making suggestions. Do not ask for information already captured here.`
+    : '';
+  return `You are a calendar assistant for ${ctx.email}. You help read, schedule, update, and delete Google Calendar events. Be concise and professional.${preferencesSection}
 
 Current time: ${now.toISOString()}
 Timezone: ${ctx.timezone}
@@ -50,6 +54,10 @@ For **delete_event**:
 - **All events in the series** → recurrence_scope: "all"
 
 Always ask before writing. Do not guess the scope.
+
+## Capturing user preferences
+
+When the user states a preference, standing constraint, or personal detail (e.g. "I prefer mornings", "I work from home on Fridays", "never book me before 9am"), call update_preferences with the full updated preferences document. Read the current preferences from the system prompt, incorporate the new information, and write the complete updated version. Confirm to the user that you've saved it.
 
 ## Important details
 

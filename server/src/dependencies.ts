@@ -4,12 +4,14 @@ import path from 'path';
 import { Config } from './env-schema';
 import { EncryptionManager } from './crypto';
 import { UserRepository, type IUserRepository } from './db/user-repository';
+import { PreferencesRepository, type IPreferencesRepository } from './db/preferences-repository';
 import { MigrationManager } from './db/migrate';
 
 export class Dependencies {
   readonly encryption: EncryptionManager;
   readonly migrations: MigrationManager;
   readonly client: IUserRepository;
+  readonly preferences: IPreferencesRepository;
 
   constructor(config: Config) {
     const dbDir = path.join(__dirname, '../data');
@@ -21,5 +23,6 @@ export class Dependencies {
     this.encryption = new EncryptionManager(config.TOKEN_ENCRYPTION_KEY);
     this.migrations = new MigrationManager(db);
     this.client = new UserRepository(db, this.encryption);
+    this.preferences = new PreferencesRepository(db);
   }
 }
