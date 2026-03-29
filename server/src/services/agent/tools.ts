@@ -28,7 +28,7 @@ export const calendarTools: ToolDefinition[] = [
   },
   {
     name: 'propose_event',
-    description: `Shows an interactive event card the user can accept or decline. This is display-only — it does not create or modify anything. Call once per option when presenting multiple choices.`,
+    description: `Shows a single interactive event card the user can accept or decline. Use this when presenting alternatives — call once per option so the user can pick one. Do NOT use this for a set of events all meant to be accepted together (use propose_batched_events instead).`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -40,6 +40,32 @@ export const calendarTools: ToolDefinition[] = [
         attendees: { type: 'array', items: { type: 'string' }, description: 'Attendee emails' },
       },
       required: ['action', 'id', 'title', 'start', 'end', 'attendees'],
+    },
+  },
+  {
+    name: 'propose_batched_events',
+    description: `Shows a batch of events the user can accept all at once or decline. Use this when all events in the set are intended to be created together — e.g. a recurring standup on Monday, Wednesday, and Friday. Do NOT use this for alternatives (use propose_event once per option instead).`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        events: {
+          type: 'array',
+          description: 'The events to propose as a batch.',
+          items: {
+            type: 'object',
+            properties: {
+              action: { type: 'string', enum: ['create', 'update', 'delete'], description: 'What this proposal is for' },
+              id: { type: 'string', description: 'Event ID (empty string for new events)' },
+              title: { type: 'string', description: 'Event title' },
+              start: { type: 'string', description: 'Start datetime (ISO 8601)' },
+              end: { type: 'string', description: 'End datetime (ISO 8601)' },
+              attendees: { type: 'array', items: { type: 'string' }, description: 'Attendee emails' },
+            },
+            required: ['action', 'id', 'title', 'start', 'end', 'attendees'],
+          },
+        },
+      },
+      required: ['events'],
     },
   },
   {

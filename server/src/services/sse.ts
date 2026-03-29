@@ -69,9 +69,9 @@ export type SSEEvent =
 
 export type SSEEmitter = (event: SSEEvent) => void;
 
-/** propose_event is display-only — intercepted for UI, never dispatched to Google. */
+/** propose_event and propose_batched_events are display-only — intercepted for UI, never dispatched to Google. */
 export function isProposalTool(name: string): boolean {
-  return name === 'propose_event';
+  return name === 'propose_event' || name === 'propose_batched_events';
 }
 
 export function formatSSE(event: SSEEvent): string {

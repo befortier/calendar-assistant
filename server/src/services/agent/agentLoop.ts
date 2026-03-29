@@ -34,10 +34,14 @@ export async function runAgentLoop(
     );
 
     if (result.stopReason === StopReason.EndTurn) {
-      // Flush any accumulated proposals before finishing, deduped by start time
+      // Flush any accumulated proposals before finishing
       if (pendingProposals.length > 0) {
-        const deduped = deduplicateProposals(pendingProposals.map(sanitizeProposal));
-        emitProposals(deduped, emit);
+        const singles = pendingProposals
+          .filter((tc) => tc.name === 'propose_event')
+          .map(sanitizeProposal);
+        const batches = pendingProposals.filter((tc) => tc.name === 'propose_batched_events');
+        const deduped = deduplicateProposals(singles);
+        emitProposals([...deduped, ...batches], emit);
       }
       emit({ event: SSEEventType.Done, data: {} });
       return;
@@ -104,35 +108,25 @@ function toAction(input: Record<string, unknown>): 'create' | 'update' | 'delete
 }
 
 function emitProposals(toolCalls: ToolCall[], emit: SSEEmitter): void {
-  // Group by action — 2+ same-action proposals become a batch_proposal; singletons stay event_proposal
-  const byAction = new Map<string, ToolCall[]>();
   for (const tc of toolCalls) {
-    const action = toAction(tc.input);
-    const group = byAction.get(action) ?? [];
-    group.push(tc);
-    byAction.set(action, group);
-  }
-
-  for (const [, group] of byAction) {
-    if (group.length >= 2) {
-      const entries: BatchProposalEntry[] = group.map((tc) => ({
-        id: tc.id,
-        action: toAction(tc.input),
-        event: toCalendarEvent(tc.input),
+    if (tc.name === 'propose_batched_events') {
+      // Expand the events array into a single BatchProposal
+      const rawEvents = Array.isArray(tc.input.events)
+        ? (tc.input.events as Record<string, unknown>[])
+        : [];
+      const entries: BatchProposalEntry[] = rawEvents.map((e, i) => ({
+        id: `${tc.id}-${i}`,
+        action: toAction(e),
+        event: toCalendarEvent(e),
       }));
-      emit({
-        event: SSEEventType.BatchProposal,
-        data: { batchId: crypto.randomUUID(), entries },
-      });
+      if (entries.length > 0) {
+        emit({ event: SSEEventType.BatchProposal, data: { batchId: crypto.randomUUID(), entries } });
+      }
     } else {
-      const tc = group[0];
+      // propose_event — always individual, never batched
       emit({
         event: SSEEventType.EventProposal,
-        data: {
-          id: tc.id,
-          action: toAction(tc.input),
-          event: toCalendarEvent(tc.input),
-        },
+        data: { id: tc.id, action: toAction(tc.input), event: toCalendarEvent(tc.input) },
       });
     }
   }
