@@ -5,7 +5,7 @@ import type { ChatItem, MessageItem, ProposalItem, ProposalMetadata, BatchPropos
 /** Extract only the message items into the shape the chat API expects. */
 export function extractMessages(
   items: ChatItem[],
-): { role: string; content: string; metadata?: ProposalMetadata }[] {
+): { role: string; content: string; metadata?: ProposalMetadata | BatchProposalMetadata }[] {
   return items
     .filter((i): i is MessageItem => i.type === 'message')
     .map(({ role, content, metadata }) => ({ role, content, ...(metadata && { metadata }) }));

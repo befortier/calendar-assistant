@@ -36,11 +36,7 @@ export async function runAgentLoop(
     if (result.stopReason === StopReason.EndTurn) {
       // Flush any accumulated proposals before finishing, deduped by start time
       if (pendingProposals.length > 0) {
-        console.log(`[agent] flushing ${pendingProposals.length} accumulated proposal(s)`);
         const deduped = deduplicateProposals(pendingProposals.map(sanitizeProposal));
-        if (deduped.length < pendingProposals.length) {
-          console.log(`[agent] deduplicated to ${deduped.length} proposal(s)`);
-        }
         emitProposals(deduped, emit);
       }
       emit({ event: SSEEventType.Done, data: {} });
@@ -58,9 +54,6 @@ export async function runAgentLoop(
 
     if (proposals.length > 0) {
       // Accumulate proposals and send tool results so the model can continue
-      for (const p of proposals) {
-        console.log(`[agent] proposal accumulated: action=${p.input.action ?? '(unset→create)'} title="${p.input.title}" start=${p.input.start}`);
-      }
       pendingProposals.push(...proposals);
       messages.push({ role: 'assistant', text: result.text, toolCalls: result.toolCalls });
       messages.push(...proposals.map((tc) => ({
@@ -120,9 +113,8 @@ function emitProposals(toolCalls: ToolCall[], emit: SSEEmitter): void {
     byAction.set(action, group);
   }
 
-  for (const [action, group] of byAction) {
+  for (const [, group] of byAction) {
     if (group.length >= 2) {
-      console.log(`[agent] emitting batch_proposal: action=${action} count=${group.length}`);
       const entries: BatchProposalEntry[] = group.map((tc) => ({
         id: tc.id,
         action: toAction(tc.input),
@@ -133,7 +125,6 @@ function emitProposals(toolCalls: ToolCall[], emit: SSEEmitter): void {
         data: { batchId: crypto.randomUUID(), entries },
       });
     } else {
-      console.log(`[agent] emitting event_proposal: action=${action} title="${group[0].input.title}"`);
       const tc = group[0];
       emit({
         event: SSEEventType.EventProposal,

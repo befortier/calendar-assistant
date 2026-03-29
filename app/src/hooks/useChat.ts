@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useReducer, useRef, type Dispatch } from 'react';
 import { streamChat } from '../lib/streamChat';
 import { extractMessages, resolveProposal, buildConfirmText, buildBatchConfirmText, buildBatchMetadata } from '../lib/chatHelpers';
 import type { SSEEvent } from '../lib/sse';
@@ -105,7 +105,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
 // --- Proposal response helpers (extracted to reduce hook complexity) ---
 
-type Dispatch = React.Dispatch<ChatAction>;
+type ChatDispatch = Dispatch<ChatAction>;
 type SendStream = (items: ChatItem[]) => Promise<void>;
 
 function hasPendingProposals(items: ChatItem[]): boolean {
@@ -120,7 +120,7 @@ function makeCancelMessage(): ChatItem {
 
 async function declineAndMaybeCancel(
   filtered: ChatItem[],
-  dispatch: Dispatch,
+  dispatch: ChatDispatch,
   sendStream: SendStream,
 ): Promise<void> {
   dispatch({ type: 'SET_ITEMS', items: filtered });
@@ -134,7 +134,7 @@ async function declineAndMaybeCancel(
 async function handleProposalDecline(
   proposalId: string,
   items: ChatItem[],
-  dispatch: Dispatch,
+  dispatch: ChatDispatch,
   sendStream: SendStream,
 ): Promise<void> {
   const filtered = items.filter(
@@ -146,7 +146,7 @@ async function handleProposalDecline(
 async function handleProposalAccept(
   proposalId: string,
   items: ChatItem[],
-  dispatch: Dispatch,
+  dispatch: ChatDispatch,
   sendStream: SendStream,
 ): Promise<void> {
   const proposal = items.find(
@@ -182,7 +182,7 @@ async function handleProposalAccept(
 async function handleBatchDecline(
   batchId: string,
   items: ChatItem[],
-  dispatch: Dispatch,
+  dispatch: ChatDispatch,
   sendStream: SendStream,
 ): Promise<void> {
   const filtered = items.filter(
@@ -194,7 +194,7 @@ async function handleBatchDecline(
 async function handleBatchAccept(
   batchId: string,
   items: ChatItem[],
-  dispatch: Dispatch,
+  dispatch: ChatDispatch,
   sendStream: SendStream,
 ): Promise<void> {
   const batch = items.find(

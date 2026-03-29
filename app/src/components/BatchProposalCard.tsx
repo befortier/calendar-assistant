@@ -9,9 +9,9 @@ interface BatchProposalCardProps {
 }
 
 const ACTION_CONFIG = {
-  create: { label: 'New Events', accent: 'border-green-400 bg-green-50', accept: 'Create all', badge: 'Created', badgeColor: 'text-green-600' },
-  update: { label: 'Update Events', accent: 'border-blue-400 bg-blue-50', accept: 'Update all', badge: 'Updated', badgeColor: 'text-blue-600' },
-  delete: { label: 'Delete Events', accent: 'border-red-400 bg-red-50', accept: 'Confirm delete all', badge: 'Deleted', badgeColor: 'text-red-600' },
+  create: { label: 'New Events', accent: 'border-green-400 bg-green-50', accept: 'Create all', badge: 'Created', badgeColor: 'text-green-600', acceptButtonClass: 'bg-green-600 hover:bg-green-700' },
+  update: { label: 'Update Events', accent: 'border-blue-400 bg-blue-50', accept: 'Update all', badge: 'Updated', badgeColor: 'text-blue-600', acceptButtonClass: 'bg-blue-600 hover:bg-blue-700' },
+  delete: { label: 'Delete Events', accent: 'border-red-400 bg-red-50', accept: 'Confirm delete all', badge: 'Deleted', badgeColor: 'text-red-600', acceptButtonClass: 'bg-red-600 hover:bg-red-700' },
 };
 
 function formatTime(iso: string): string {
@@ -44,13 +44,15 @@ export default function BatchProposalCard({ item, onAccept, onDecline, onRemoveE
           onClick={() => setCollapsed((c) => !c)}
           className="text-xs text-gray-400 hover:text-gray-600"
           aria-expanded={!collapsed}
+          aria-controls="batch-event-list"
+          aria-label={collapsed ? 'Show events' : 'Hide events'}
         >
           {collapsed ? 'Show' : 'Hide'}
         </button>
       </div>
 
       {!collapsed && (
-        <ul className="mt-2 space-y-1.5" aria-label="Events in batch">
+        <ul id="batch-event-list" className="mt-2 space-y-1.5" aria-label="Events in batch">
           {item.entries.map(({ id, action, event }) => {
             const removed = item.removedIds.includes(event.id);
             const rowConfig = ACTION_CONFIG[action];
@@ -90,9 +92,7 @@ export default function BatchProposalCard({ item, onAccept, onDecline, onRemoveE
             type="button"
             onClick={onAccept}
             disabled={remainingCount === 0}
-            className={`rounded px-3 py-1 text-xs font-medium text-white disabled:opacity-40 ${
-              primaryAction === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
-            }`}
+            className={`rounded px-3 py-1 text-xs font-medium text-white disabled:opacity-40 ${config.acceptButtonClass}`}
           >
             {config.accept} ({remainingCount})
           </button>
