@@ -245,6 +245,14 @@ describe('dispatchTool: delete_event', () => {
 // ---------------------------------------------------------------------------
 
 describe('dispatchTool: update_event with recurrence_scope', () => {
+  it("throws when recurrence_scope is 'this_and_following' (not supported for updates)", async () => {
+    const service = makeService();
+
+    await expect(
+      dispatchTool('update_event', { id: 'master_20260322T090000Z', recurrence_scope: 'this_and_following' }, service),
+    ).rejects.toThrow("this_and_following is not supported for update_event");
+  });
+
   it('passes recurrence_scope to service.updateEvent', async () => {
     const mockUpdate = vi.fn().mockResolvedValue({
       id: 'master_20260322T090000Z',

@@ -166,6 +166,10 @@ export class GoogleCalendarService {
     if (updates.location    !== undefined) requestBody.location    = updates.location;
     if (updates.reminders   !== undefined) requestBody.reminders   = { useDefault: false, overrides: updates.reminders };
 
+    if (scope === 'this_and_following' && !eventId.match(/_\d{8}T\d{6}Z$/)) {
+      throw new Error(`updateEvent: this_and_following requires an instance event ID (got '${eventId}')`);
+    }
+
     // 'all' and 'this_and_following' both target the master event (series-level patch).
     // 'this' or no scope targets the instance ID directly.
     const targetId = (scope === 'all' || scope === 'this_and_following')
@@ -279,7 +283,7 @@ function truncateRruleUntil(rrule: string, instanceEventId: string): string {
     match[1].replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/, '$1-$2-$3T$4:$5:$6Z'),
   );
   const until = new Date(instanceStart.getTime() - 1000);
-  const untilStr = until.toISOString().replace(/[-:]/g, '').replace('.000', '');
+  const untilStr = until.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
   // Remove existing UNTIL/COUNT via split/filter to avoid malformed output
   const parts = rrule.replace(/^RRULE:/, '').split(';')
     .filter((p) => !p.startsWith('UNTIL=') && !p.startsWith('COUNT='));

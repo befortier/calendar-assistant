@@ -879,14 +879,11 @@ describe('GoogleCalendarService.updateEvent — recurrence scope', () => {
     );
   });
 
-  it("scope 'this_and_following' patches the master event (series update from master)", async () => {
-    const mockPatch = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
-    const service = new GoogleCalendarService(makeCalendar([], { patch: mockPatch }));
+  it("scope 'this_and_following' throws when eventId has no instance suffix", async () => {
+    const service = new GoogleCalendarService(makeCalendar([]));
 
-    await service.updateEvent('master_20260322T090000Z', { title: 'Updated' }, 'this_and_following');
-
-    expect(mockPatch).toHaveBeenCalledWith(
-      expect.objectContaining({ calendarId: 'primary', eventId: 'master' }),
+    await expect(service.updateEvent('masteronly', { title: 'x' }, 'this_and_following')).rejects.toThrow(
+      'this_and_following requires an instance event ID',
     );
   });
 });

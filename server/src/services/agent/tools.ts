@@ -80,8 +80,8 @@ export const calendarTools: ToolDefinition[] = [
         id: { type: 'string', description: 'Event ID from get_events or create_event' },
         recurrence_scope: {
           type: 'string',
-          enum: ['this', 'this_and_following', 'all'],
-          description: 'For recurring events: "this" updates only this instance, "this_and_following" updates this and all following instances, "all" updates the entire series. Omit for non-recurring events.',
+          enum: ['this', 'all'],
+          description: 'For recurring events: "this" updates only this instance, "all" updates the entire series. Omit for non-recurring events.',
         },
         title: { type: 'string', description: 'New title' },
         start: { type: 'string', description: 'New start datetime (ISO 8601)' },

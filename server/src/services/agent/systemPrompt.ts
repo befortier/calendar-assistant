@@ -40,6 +40,11 @@ When the user accepts a proposed event card, their message includes an <event_co
 
 When the user wants to update or delete a recurring event (any event returned by get_events that has a recurrence field), you MUST ask which scope they want before calling update_event or delete_event:
 
+For **update_event**:
+- **Just this event** → recurrence_scope: "this"
+- **All events in the series** → recurrence_scope: "all"
+
+For **delete_event**:
 - **Just this event** → recurrence_scope: "this"
 - **This and all following events** → recurrence_scope: "this_and_following"
 - **All events in the series** → recurrence_scope: "all"
