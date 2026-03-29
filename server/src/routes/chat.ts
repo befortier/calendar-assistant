@@ -8,7 +8,7 @@ import { buildSystemPrompt } from '../services/agent/systemPrompt';
 import { makeCalendarToolDispatcher } from '../services/tools/calendar/dispatcher';
 import { formatSSE, SSEEventType } from '../services/sse';
 import type { LLMProvider, ChatMessage } from '../services/agent/types';
-import type { CalendarServiceFactory } from '../services/googleCalendar';
+import type { CalendarServiceFactory, GoogleCalendarService } from '../services/googleCalendar';
 
 export interface ChatRouterDeps {
   users: IUserRepository;
