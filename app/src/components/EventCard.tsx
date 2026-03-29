@@ -1,4 +1,5 @@
 import type { CalendarEvent } from '../lib/sse';
+import { formatTime } from '../lib/format';
 
 export type ProposalStatus = 'pending' | 'accepted' | 'declined';
 export type ProposalAction = 'create' | 'update' | 'delete';
@@ -16,18 +17,6 @@ const ACTION_CONFIG = {
   update: { label: 'Update Event', accent: 'border-blue-400 bg-blue-50', accept: 'Update', badge: 'Updated', badgeColor: 'text-blue-600' },
   delete: { label: 'Delete Event', accent: 'border-red-400 bg-red-50', accept: 'Confirm Delete', badge: 'Deleted', badgeColor: 'text-red-600' },
 };
-
-function formatTime(iso: string): string {
-  if (!iso) return '';
-  const date = new Date(iso);
-  return date.toLocaleString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
 
 export default function EventCard({ action, event, status, onAccept, onDecline }: EventCardProps) {
   const config = ACTION_CONFIG[action];
