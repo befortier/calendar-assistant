@@ -2,6 +2,12 @@ import { google } from 'googleapis';
 import type { Config } from '../../env-schema';
 import { GoogleCalendarService } from './service';
 
+export type CalendarServiceFactory = (
+  accessToken: string,
+  refreshToken: string,
+  calendarId?: string,
+) => GoogleCalendarService;
+
 export function createGoogleCalendarService(
   accessToken: string,
   refreshToken: string,

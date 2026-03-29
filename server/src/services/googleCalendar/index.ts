@@ -18,4 +18,4 @@ export type {
 } from './types';
 
 export { GoogleCalendarService } from './service';
-export { createGoogleCalendarService } from './factory';
+export { createGoogleCalendarService, type CalendarServiceFactory } from './factory';

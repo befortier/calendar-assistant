@@ -45,14 +45,10 @@ app.use('/preferences', auth);
 
 const provider = new ClaudeAdapter(new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }), config.ANTHROPIC_MODEL);
 
-app.use(
-  '/calendars',
-  createCalendarsRouter({
-    users: deps.client,
-    calendarServiceFactory: (accessToken, refreshToken) =>
-      createGoogleCalendarService(accessToken, refreshToken, config),
-  }),
-);
+const calendarServiceFactory = (accessToken: string, refreshToken: string, calendarId?: string) =>
+  createGoogleCalendarService(accessToken, refreshToken, config, undefined, calendarId);
+
+app.use('/calendars', createCalendarsRouter({ users: deps.client, calendarServiceFactory }));
 
 app.use(
   '/chat',
@@ -60,8 +56,7 @@ app.use(
     users: deps.client,
     preferences: deps.preferences,
     provider,
-    calendarServiceFactory: (accessToken, refreshToken, calendarId) =>
-      createGoogleCalendarService(accessToken, refreshToken, config, undefined, calendarId),
+    calendarServiceFactory,
   }),
 );
 
