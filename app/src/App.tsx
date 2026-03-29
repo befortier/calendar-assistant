@@ -3,6 +3,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { useAuthStore } from './stores/auth';
 import LoginPage from './pages/LoginPage';
 import ChatPage from './pages/ChatPage';
+import PreferencesPage from './pages/PreferencesPage';
 
 function requireEnv(key: string, value: string | undefined): string {
   if (!value) throw new Error(`${key} is not set`);
@@ -41,6 +42,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ChatPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/preferences"
+            element={
+              <ProtectedRoute>
+                <PreferencesPage />
               </ProtectedRoute>
             }
           />
