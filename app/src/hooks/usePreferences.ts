@@ -20,9 +20,9 @@ export function usePreferences(): UsePreferencesResult {
   const [status, setStatus] = useState<PreferencesStatus>('loading');
   const [error, setError] = useState('');
 
+  // Internal fetch — does NOT reset status/error before fetching.
+  // Safe to call from an effect (no synchronous setState). To reset UI state first, call retry().
   const load = useCallback(() => {
-    setStatus('loading');
-    setError('');
     authenticatedApi.getPreferences()
       .then((res) => {
         setContent(res.content);
@@ -36,6 +36,13 @@ export function usePreferences(): UsePreferencesResult {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Retry resets UI state synchronously first, then re-fetches.
+  const retry = useCallback(() => {
+    setStatus('loading');
+    setError('');
+    load();
+  }, [load]);
 
   const save = useCallback(async () => {
     setStatus('saving');
@@ -58,6 +65,6 @@ export function usePreferences(): UsePreferencesResult {
     error,
     isDirty: content !== saved,
     save,
-    retry: load,
+    retry,
   };
 }

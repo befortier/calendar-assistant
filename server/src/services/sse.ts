@@ -49,9 +49,7 @@ export interface BatchProposalPayload {
   entries: BatchProposalEntry[];
 }
 
-export interface DonePayload {
-  // Empty
-}
+export type DonePayload = Record<string, never>;
 
 export interface ErrorPayload {
   message: string;

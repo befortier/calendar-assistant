@@ -16,7 +16,7 @@ function asDate(v: unknown, field: string): Date {
 function asStringArray(v: unknown, field: string): string[] {
   if (!Array.isArray(v) || !v.every((x) => typeof x === 'string'))
     throw new Error(`dispatchTool: expected string[] for '${field}'`);
-  return v as string[];
+  return v;
 }
 
 const VALID_RECURRENCE_SCOPES: RecurrenceScope[] = ['this', 'this_and_following', 'all'];

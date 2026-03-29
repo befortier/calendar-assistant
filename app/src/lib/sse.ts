@@ -39,6 +39,8 @@ export function parseSSEChunk(raw: string): SSEEvent[] {
       const dataMatch = block.match(/^data: (.+)$/m);
       if (!eventMatch || !dataMatch) return null;
       try {
+        // JSON.parse is untyped by nature; the cast to SSEEvent is intentional
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         return { event: eventMatch[1], data: JSON.parse(dataMatch[1]) } as SSEEvent;
       } catch {
         return null;

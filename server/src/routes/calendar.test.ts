@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { createCalendarRouter, type CalendarRouterDeps } from './calendar';
-import type { IUserRepository, User } from '../db/user-repository';
+import type { User } from '../db/user-repository';
 import type { GoogleCalendarService, CalendarEvent } from '../services/googleCalendar';
 
 const FAKE_USER: User = {

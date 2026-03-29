@@ -137,7 +137,7 @@ function emitProposals(toolCalls: ToolCall[], emit: SSEEmitter): void {
 function deduplicateProposals(proposals: ToolCall[]): ToolCall[] {
   const seen = new Set<string>();
   return proposals.filter((tc) => {
-    const key = `${tc.input.start}|${tc.input.end}`;
+    const key = `${String(tc.input.start)}|${String(tc.input.end)}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

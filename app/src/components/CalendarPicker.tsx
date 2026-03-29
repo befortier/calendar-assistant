@@ -67,18 +67,22 @@ export default function CalendarPicker({ hasMessages, onNewChat }: Props) {
       </div>
 
       {pending && (
+        // Backdrop: click dismisses. Escape is handled by the inner dialog only.
         <div
+          role="presentation"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="calendar-switch-title"
-          aria-describedby="calendar-switch-desc"
           onClick={dismissSwitch}
-          onKeyDown={(e) => { if (e.key === 'Escape') dismissSwitch(); }}
         >
+          {/* onClick stops backdrop click from bubbling; onKeyDown handles Escape */}
+          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="calendar-switch-title"
+            aria-describedby="calendar-switch-desc"
             className="mx-4 max-w-sm rounded-xl bg-white p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); dismissSwitch(); } }}
           >
             <h2 id="calendar-switch-title" className="text-base font-semibold text-gray-900">
               Switch calendar?
