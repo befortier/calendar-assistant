@@ -55,4 +55,11 @@ describe('PUT /preferences', () => {
     expect(res.status).toBe(400);
     expect(repo.setPreferences).not.toHaveBeenCalled();
   });
+
+  it('returns 400 when content exceeds 4000 characters', async () => {
+    const repo = makePreferencesRepo();
+    const res = await request(makeApp(repo)).put('/').send({ content: 'a'.repeat(4001) });
+    expect(res.status).toBe(400);
+    expect(repo.setPreferences).not.toHaveBeenCalled();
+  });
 });

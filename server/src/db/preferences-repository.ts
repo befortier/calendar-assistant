@@ -5,7 +5,7 @@ export interface IPreferencesRepository {
   setPreferences(userId: string, content: string): void;
 }
 
-interface SkillsRow {
+interface PreferencesRow {
   content: string;
 }
 
@@ -15,7 +15,7 @@ export class PreferencesRepository implements IPreferencesRepository {
   getPreferences(userId: string): string {
     const row = this.db.prepare(
       'SELECT content FROM skills WHERE user_id = ?',
-    ).get(userId) as SkillsRow | undefined;
+    ).get(userId) as PreferencesRow | undefined;
     return row?.content ?? '';
   }
 

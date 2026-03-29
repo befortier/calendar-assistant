@@ -74,7 +74,6 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
     }
 
     const calendarService = deps.calendarServiceFactory(user.accessToken, user.refreshToken);
-    const preferences = deps.preferences.getPreferences(userId);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -97,7 +96,11 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
           tools: calendarTools,
           dispatchTool: makeDispatchTool(deps.preferences, userId, calendarService, parsed.data.timezone),
           buildSystemPrompt: () =>
-            buildSystemPrompt({ email: user.email, timezone: parsed.data.timezone, preferences }),
+            buildSystemPrompt({
+              email: user.email,
+              timezone: parsed.data.timezone,
+              preferences: deps.preferences.getPreferences(userId),
+            }),
         },
         (event) => { if (!closed) res.write(formatSSE(event)); },
       );

@@ -8,7 +8,7 @@ export interface UserContext {
 export function buildSystemPrompt(ctx: UserContext): string {
   const now = ctx.now ?? new Date();
   const preferencesSection = ctx.preferences?.trim()
-    ? `\n\n## User preferences\n\n${ctx.preferences.trim()}\n\nApply these preferences when scheduling or making suggestions. Do not ask for information already captured here.`
+    ? `\n\n## User preferences\n\n<user_preferences>\n${ctx.preferences.trim()}\n</user_preferences>\n\nApply these preferences when scheduling or making suggestions. Do not ask for information already captured here.`
     : '';
   return `You are a calendar assistant for ${ctx.email}. You help read, schedule, update, and delete Google Calendar events. Be concise and professional.${preferencesSection}
 

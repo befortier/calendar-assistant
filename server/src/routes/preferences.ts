@@ -7,7 +7,7 @@ export interface PreferencesRouterDeps {
 }
 
 const UpdatePreferencesSchema = z.object({
-  content: z.string(),
+  content: z.string().max(4000),
 });
 
 export function createPreferencesRouter(deps: PreferencesRouterDeps): Router {
