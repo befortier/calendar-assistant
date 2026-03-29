@@ -1,3 +1,5 @@
+import Markdown from 'react-markdown';
+
 interface ChatBubbleProps {
   role: 'user' | 'assistant';
   content: string;
@@ -15,7 +17,11 @@ export default function ChatBubble({ role, content }: ChatBubbleProps) {
             : 'bg-gray-100 text-gray-900'
         }`}
       >
-        {content}
+        {isUser ? content : (
+          <div className="prose prose-sm prose-gray max-w-none">
+            <Markdown>{content}</Markdown>
+          </div>
+        )}
       </div>
     </div>
   );
