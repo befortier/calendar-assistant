@@ -19,6 +19,7 @@ interface ChatState {
 
 type ChatAction =
   | { type: 'SET_ITEMS'; items: ChatState['items'] }
+  | { type: 'CLEAR_CHAT' }
   | { type: 'STREAM_START'; id: string }
   | { type: 'STATUS_TICK'; id: string }
   | { type: 'TOOL_CALL'; tool: string }
@@ -36,6 +37,9 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
     case 'SET_ITEMS':
       return { ...state, items: action.items };
+
+    case 'CLEAR_CHAT':
+      return initialState;
 
     case 'STREAM_START':
       return {
@@ -345,5 +349,7 @@ export function useChat() {
     [sendStream],
   );
 
-  return { items, loading, status, error, bottomRef, sendMessage, respondToProposal, removeFromBatch, respondToBatch };
+  const clearChat = useCallback(() => dispatch({ type: 'CLEAR_CHAT' }), []);
+
+  return { items, loading, status, error, bottomRef, sendMessage, respondToProposal, removeFromBatch, respondToBatch, clearChat };
 }
