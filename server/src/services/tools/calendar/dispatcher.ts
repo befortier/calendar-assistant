@@ -1,5 +1,5 @@
 import type { GoogleCalendarService, CreateEventInput, UpdateEventInput, RecurrenceScope } from '../../googleCalendar';
-import { invertBusy } from '../../googleCalendar';
+import { invertBusy } from '../../calendarAlgorithms';
 import { asString, asDate, asStringArray, asRecurrenceScope, asReminders } from '../../agent/llmInputValidation';
 
 /**
