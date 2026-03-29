@@ -199,12 +199,12 @@ export function useChat() {
       return;
     }
 
-    // Accept: resolve group and send confirmation with metadata
+    // Accept: apply resolveProposal eagerly to avoid stale state overwrite
     const proposal = itemsRef.current.find(
       (i): i is ProposalItem => i.type === 'event_proposal' && i.id === proposalId,
     );
     const confirmText = buildConfirmText(itemsRef.current, proposalId, true);
-    setItems((prev) => resolveProposal(prev, proposalId, true));
+    const resolved = resolveProposal(itemsRef.current, proposalId, true);
     const metadata: ProposalMetadata | undefined = proposal ? {
       confirmedProposal: {
         action: proposal.action,
@@ -219,7 +219,7 @@ export function useChat() {
       type: 'message', id: crypto.randomUUID(), role: 'user', content: confirmText,
       ...(metadata && { metadata }),
     };
-    const allItems = [...itemsRef.current, confirmItem];
+    const allItems = [...resolved, confirmItem];
     setItems(allItems);
     await sendStream(allItems);
   }, [sendStream]);

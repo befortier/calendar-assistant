@@ -39,7 +39,9 @@ export default function EventCard({ action, event, status, onAccept, onDecline }
 
       {event.start && (
         <p className="mt-1 text-xs text-gray-600">
-          {formatTime(event.start)}{event.end ? ` – ${formatTime(event.end)}` : ''}
+          {event.allDay
+            ? new Date(event.start).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+            : `${formatTime(event.start)}${event.end ? ` – ${formatTime(event.end)}` : ''}`}
         </p>
       )}
 
