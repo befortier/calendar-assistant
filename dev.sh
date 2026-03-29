@@ -11,7 +11,9 @@ echo "Stopping existing servers..."
 for PORT in 3001 5173; do
   PIDS=$(lsof -ti tcp:"$PORT" 2>/dev/null || true)
   if [ -n "$PIDS" ]; then
-    echo "  Killing PID(s) $PIDS on port $PORT"
+    echo "  Stopping PID(s) $PIDS on port $PORT"
+    kill "$PIDS" 2>/dev/null || true
+    sleep 1
     kill -9 "$PIDS" 2>/dev/null || true
   fi
 done

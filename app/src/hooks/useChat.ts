@@ -18,8 +18,8 @@ interface ChatState {
 
 type ChatAction =
   | { type: 'SET_ITEMS'; items: ChatState['items'] }
-  | { type: 'STREAM_START' }
-  | { type: 'STATUS_TICK' }
+  | { type: 'STREAM_START'; id: string }
+  | { type: 'STATUS_TICK'; id: string }
   | { type: 'TOOL_CALL'; tool: string }
   | { type: 'CLEAR_STATUS' }
   | { type: 'APPEND_DELTA'; text: string }
@@ -42,7 +42,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         status: null,
         items: [
           ...state.items,
-          { type: 'message', id: crypto.randomUUID(), role: 'assistant', content: '' },
+          { type: 'message', id: action.id, role: 'assistant', content: '' },
         ],
       };
 
@@ -56,7 +56,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ...state,
         status: 'Thinking…',
         items: needsPlaceholder
-          ? [...state.items, { type: 'message', id: crypto.randomUUID(), role: 'assistant', content: '' }]
+          ? [...state.items, { type: 'message', id: action.id, role: 'assistant', content: '' }]
           : state.items,
       };
     }
@@ -109,7 +109,7 @@ export function useChat() {
   const handleEvent = useCallback((event: SSEEvent) => {
     switch (event.event) {
       case 'status':
-        dispatch({ type: 'STATUS_TICK' });
+        dispatch({ type: 'STATUS_TICK', id: crypto.randomUUID() });
         break;
       case 'tool_call':
         dispatch({ type: 'TOOL_CALL', tool: event.data.tool });
@@ -144,7 +144,7 @@ export function useChat() {
 
   const sendStream = useCallback(
     async (allItems: ChatState['items']) => {
-      dispatch({ type: 'STREAM_START' });
+      dispatch({ type: 'STREAM_START', id: crypto.randomUUID() });
       try {
         await streamChat(
           extractMessages(allItems),
