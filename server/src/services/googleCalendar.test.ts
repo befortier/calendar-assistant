@@ -9,6 +9,7 @@ function makeCalendar(
     insert?: ReturnType<typeof vi.fn>;
     patch?: ReturnType<typeof vi.fn>;
     delete?: ReturnType<typeof vi.fn>;
+    get?: ReturnType<typeof vi.fn>;
   },
 ): calendar_v3.Calendar {
   return {
@@ -17,6 +18,7 @@ function makeCalendar(
       insert: overrides?.insert ?? vi.fn(),
       patch: overrides?.patch ?? vi.fn(),
       delete: overrides?.delete ?? vi.fn(),
+      get: overrides?.get ?? vi.fn(),
     },
     freebusy: {
       query: overrides?.freebusyQuery ?? vi.fn(),
@@ -752,5 +754,139 @@ describe('GoogleCalendarService.deleteEvent', () => {
     const result = await service.deleteEvent('evt-abc');
 
     expect(result).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deleteEvent — recurrence scope
+// ---------------------------------------------------------------------------
+
+describe('GoogleCalendarService.deleteEvent — recurrence scope', () => {
+  it("scope 'this' deletes the instance ID as-is", async () => {
+    const mockDelete = vi.fn().mockResolvedValue({});
+    const service = new GoogleCalendarService(makeCalendar([], { delete: mockDelete }));
+
+    await service.deleteEvent('master_20260322T090000Z', 'this');
+
+    expect(mockDelete).toHaveBeenCalledWith({ calendarId: 'primary', eventId: 'master_20260322T090000Z' });
+  });
+
+  it("scope 'all' strips instance suffix and deletes the master event", async () => {
+    const mockDelete = vi.fn().mockResolvedValue({});
+    const service = new GoogleCalendarService(makeCalendar([], { delete: mockDelete }));
+
+    await service.deleteEvent('master_20260322T090000Z', 'all');
+
+    expect(mockDelete).toHaveBeenCalledWith({ calendarId: 'primary', eventId: 'master' });
+  });
+
+  it("scope 'this_and_following' produces valid RRULE when existing RRULE has UNTIL before FREQ", async () => {
+    const mockGet = vi.fn().mockResolvedValue({
+      data: {
+        id: 'master',
+        summary: 'Weekly',
+        start: { dateTime: '2026-03-01T09:00:00Z' },
+        end:   { dateTime: '2026-03-01T09:30:00Z' },
+        recurrence: ['RRULE:UNTIL=20261231T235959Z;FREQ=WEEKLY;BYDAY=MO'],
+      },
+    });
+    const mockPatch = vi.fn().mockResolvedValue({
+      data: {
+        id: 'master',
+        summary: 'Weekly',
+        start: { dateTime: '2026-03-01T09:00:00Z' },
+        end:   { dateTime: '2026-03-01T09:30:00Z' },
+      },
+    });
+    const service = new GoogleCalendarService(makeCalendar([], { get: mockGet, patch: mockPatch }));
+
+    await service.deleteEvent('master_20260322T090000Z', 'this_and_following');
+
+    const patchedRecurrence: string[] = mockPatch.mock.calls[0][0].requestBody.recurrence;
+    expect(patchedRecurrence[0]).not.toMatch(/RRULE:;/);
+    expect(patchedRecurrence[0]).toMatch(/^RRULE:/);
+    expect(patchedRecurrence[0]).toMatch(/FREQ=WEEKLY/);
+    expect(patchedRecurrence[0]).toMatch(/UNTIL=20260322T085959Z/);
+  });
+
+  it("scope 'this_and_following' throws when eventId has no instance suffix", async () => {
+    const service = new GoogleCalendarService(makeCalendar([]));
+
+    await expect(service.deleteEvent('masteronly', 'this_and_following')).rejects.toThrow(
+      'this_and_following requires an instance event ID',
+    );
+  });
+
+  it("scope 'this_and_following' patches master RRULE with UNTIL before instance start", async () => {
+    const mockGet = vi.fn().mockResolvedValue({
+      data: {
+        id: 'master',
+        summary: 'Weekly standup',
+        start: { dateTime: '2026-03-01T09:00:00Z' },
+        end:   { dateTime: '2026-03-01T09:30:00Z' },
+        recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO'],
+      },
+    });
+    const mockPatch = vi.fn().mockResolvedValue({
+      data: {
+        id: 'master',
+        summary: 'Weekly standup',
+        start: { dateTime: '2026-03-01T09:00:00Z' },
+        end:   { dateTime: '2026-03-01T09:30:00Z' },
+      },
+    });
+    const service = new GoogleCalendarService(makeCalendar([], { get: mockGet, patch: mockPatch }));
+
+    await service.deleteEvent('master_20260322T090000Z', 'this_and_following');
+
+    expect(mockGet).toHaveBeenCalledWith({ calendarId: 'primary', eventId: 'master' });
+    expect(mockPatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        calendarId: 'primary',
+        eventId: 'master',
+        requestBody: expect.objectContaining({
+          recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20260322T085959Z'],
+        }),
+      }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateEvent — recurrence scope
+// ---------------------------------------------------------------------------
+
+describe('GoogleCalendarService.updateEvent — recurrence scope', () => {
+  it("scope 'this' patches the instance ID as-is", async () => {
+    const mockPatch = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
+    const service = new GoogleCalendarService(makeCalendar([], { patch: mockPatch }));
+
+    await service.updateEvent('master_20260322T090000Z', { title: 'Updated' }, 'this');
+
+    expect(mockPatch).toHaveBeenCalledWith(
+      expect.objectContaining({ calendarId: 'primary', eventId: 'master_20260322T090000Z' }),
+    );
+  });
+
+  it("scope 'all' strips instance suffix and patches the master event", async () => {
+    const mockPatch = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
+    const service = new GoogleCalendarService(makeCalendar([], { patch: mockPatch }));
+
+    await service.updateEvent('master_20260322T090000Z', { title: 'Updated' }, 'all');
+
+    expect(mockPatch).toHaveBeenCalledWith(
+      expect.objectContaining({ calendarId: 'primary', eventId: 'master' }),
+    );
+  });
+
+  it("scope 'this_and_following' patches the master event (series update from master)", async () => {
+    const mockPatch = vi.fn().mockResolvedValue({ data: MOCK_EVENT_RESPONSE });
+    const service = new GoogleCalendarService(makeCalendar([], { patch: mockPatch }));
+
+    await service.updateEvent('master_20260322T090000Z', { title: 'Updated' }, 'this_and_following');
+
+    expect(mockPatch).toHaveBeenCalledWith(
+      expect.objectContaining({ calendarId: 'primary', eventId: 'master' }),
+    );
   });
 });

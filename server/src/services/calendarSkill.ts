@@ -1,4 +1,4 @@
-import type { GoogleCalendarService, CreateEventInput, UpdateEventInput, EventReminder } from './googleCalendar';
+import type { GoogleCalendarService, CreateEventInput, UpdateEventInput, EventReminder, RecurrenceScope } from './googleCalendar';
 import { invertBusy } from './googleCalendar';
 
 function asString(v: unknown, field: string): string {
@@ -17,6 +17,15 @@ function asStringArray(v: unknown, field: string): string[] {
   if (!Array.isArray(v) || !v.every((x) => typeof x === 'string'))
     throw new Error(`dispatchTool: expected string[] for '${field}'`);
   return v as string[];
+}
+
+const VALID_RECURRENCE_SCOPES: RecurrenceScope[] = ['this', 'this_and_following', 'all'];
+
+function asRecurrenceScope(v: unknown): RecurrenceScope {
+  const raw = asString(v, 'recurrence_scope');
+  if (!(VALID_RECURRENCE_SCOPES as string[]).includes(raw))
+    throw new Error(`dispatchTool: invalid recurrence_scope '${raw}'`);
+  return raw as RecurrenceScope;
 }
 
 function asReminders(v: unknown, field: string): EventReminder[] {
@@ -87,6 +96,7 @@ async function handleUpdateEvent(
   service: GoogleCalendarService,
 ): Promise<string> {
   const id = asString(input.id, 'id');
+  const scope = input.recurrence_scope != null ? asRecurrenceScope(input.recurrence_scope) : undefined;
   const updates: UpdateEventInput = {};
   if (input.title != null) updates.title = asString(input.title, 'title');
   if (input.start != null) updates.start = asString(input.start, 'start');
@@ -96,7 +106,7 @@ async function handleUpdateEvent(
   if (input.location != null) updates.location = asString(input.location, 'location');
   if (input.reminders != null) updates.reminders = asReminders(input.reminders, 'reminders');
   if (input.allDay != null) updates.allDay = Boolean(input.allDay);
-  const event = await service.updateEvent(id, updates);
+  const event = await service.updateEvent(id, updates, scope);
   return JSON.stringify(event);
 }
 
@@ -105,7 +115,8 @@ async function handleDeleteEvent(
   service: GoogleCalendarService,
 ): Promise<string> {
   const id = asString(input.id, 'id');
-  await service.deleteEvent(id);
+  const scope = input.recurrence_scope != null ? asRecurrenceScope(input.recurrence_scope) : undefined;
+  await service.deleteEvent(id, scope);
   return JSON.stringify({ success: true });
 }
 
