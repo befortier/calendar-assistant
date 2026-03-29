@@ -2,13 +2,13 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { IUserRepository } from '../db/user-repository';
 import type { IPreferencesRepository } from '../db/preferences-repository';
-import type { GoogleCalendarService } from '../services/googleCalendar';
 import { runAgentLoop } from '../services/agent/agentLoop';
 import { calendarTools } from '../services/agent/tools';
 import { buildSystemPrompt } from '../services/agent/systemPrompt';
-import { dispatchTool } from '../services/calendarSkill';
+import { makeCalendarToolDispatcher } from '../services/calendarToolDispatcher';
 import { formatSSE, SSEEventType } from '../services/sse';
 import type { LLMProvider, ChatMessage } from '../services/agent/types';
+import type { GoogleCalendarService } from '../services/googleCalendar';
 
 export interface ChatRouterDeps {
   users: IUserRepository;
@@ -38,13 +38,14 @@ function makeDispatchTool(
   calendarService: GoogleCalendarService,
   timezone: string,
 ) {
+  const calendarDispatcher = makeCalendarToolDispatcher(calendarService, timezone);
   return (name: string, input: Record<string, unknown>): Promise<string> => {
     if (name === 'update_preferences') {
       const content = typeof input.content === 'string' ? input.content : '';
       preferencesRepo.setPreferences(userId, content);
       return Promise.resolve(JSON.stringify({ saved: true }));
     }
-    return dispatchTool(name, input, calendarService, timezone);
+    return calendarDispatcher.dispatch(name, input);
   };
 }
 
