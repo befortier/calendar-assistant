@@ -46,30 +46,33 @@ export default function ChatPage() {
             </p>
           )}
           {items.map((item) => {
-            if (item.type === 'message') {
-              return <ChatBubble key={item.id} role={item.role} content={item.content} />;
+            switch (item.type) {
+              case 'message':
+                return <ChatBubble key={item.id} role={item.role} content={item.content} />;
+              case 'batch_proposal':
+                return (
+                  <BatchProposalCard
+                    key={item.id}
+                    item={item}
+                    onAccept={() => respondToBatch(item.id, true)}
+                    onDecline={() => respondToBatch(item.id, false)}
+                    onRemoveEvent={(eventId) => removeFromBatch(item.id, eventId)}
+                  />
+                );
+              case 'event_proposal':
+                return (
+                  <EventCard
+                    key={item.id}
+                    action={item.action}
+                    event={item.event}
+                    status={item.status}
+                    onAccept={() => respondToProposal(item.id, true)}
+                    onDecline={() => respondToProposal(item.id, false)}
+                  />
+                );
+              default:
+                return null;
             }
-            if (item.type === 'batch_proposal') {
-              return (
-                <BatchProposalCard
-                  key={item.id}
-                  item={item}
-                  onAccept={() => respondToBatch(item.id, true)}
-                  onDecline={() => respondToBatch(item.id, false)}
-                  onRemoveEvent={(eventId) => removeFromBatch(item.id, eventId)}
-                />
-              );
-            }
-            return (
-              <EventCard
-                key={item.id}
-                action={item.action}
-                event={item.event}
-                status={item.status}
-                onAccept={() => respondToProposal(item.id, true)}
-                onDecline={() => respondToProposal(item.id, false)}
-              />
-            );
           })}
           {status && (
             <div className="flex justify-start">
