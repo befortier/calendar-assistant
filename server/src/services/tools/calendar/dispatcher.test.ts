@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { makeCalendarToolDispatcher } from './calendarToolDispatcher';
-import type { GoogleCalendarService } from './googleCalendar';
+import { makeCalendarToolDispatcher } from './dispatcher';
+import type { GoogleCalendarService } from '../../googleCalendar';
 
 const START = '2026-03-22T00:00:00.000Z';
 const END = '2026-03-22T23:59:59.000Z';

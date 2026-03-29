@@ -1,4 +1,4 @@
-import type { ToolDefinition } from './types';
+import type { ToolDefinition } from '../../agent/types';
 
 export const calendarTools: ToolDefinition[] = [
   {
