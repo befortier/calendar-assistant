@@ -6,6 +6,7 @@ export const SSEEventType = {
   ToolCall: 'tool_call',
   ToolResult: 'tool_result',
   EventProposal: 'event_proposal',
+  BatchProposal: 'batch_proposal',
   Done: 'done',
   Error: 'error',
 } as const;
@@ -37,6 +38,17 @@ export interface EventProposalPayload {
   group?: string;
 }
 
+export interface BatchProposalEntry {
+  id: string;
+  action: 'create' | 'update' | 'delete';
+  event: CalendarEvent;
+}
+
+export interface BatchProposalPayload {
+  batchId: string;
+  entries: BatchProposalEntry[];
+}
+
 export interface DonePayload {
   // Empty
 }
@@ -51,6 +63,7 @@ export type SSEEvent =
   | { event: typeof SSEEventType.ToolCall; data: ToolCallPayload }
   | { event: typeof SSEEventType.ToolResult; data: ToolResultPayload }
   | { event: typeof SSEEventType.EventProposal; data: EventProposalPayload }
+  | { event: typeof SSEEventType.BatchProposal; data: BatchProposalPayload }
   | { event: typeof SSEEventType.Done; data: DonePayload }
   | { event: typeof SSEEventType.Error; data: ErrorPayload };
 

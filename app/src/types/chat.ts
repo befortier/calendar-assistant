@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '../lib/sse';
+import type { CalendarEvent, BatchProposalEntry } from '../lib/sse';
 import type { ProposalStatus, ProposalAction } from '../components/EventCard';
 
 /** Metadata attached to a user confirmation message so the agent knows what was accepted. */
@@ -13,12 +13,26 @@ export interface ProposalMetadata {
   };
 }
 
+export interface BatchProposalMetadata {
+  confirmedBatch: {
+    batchId: string;
+    entries: Array<{
+      eventId: string;
+      action: 'create' | 'update' | 'delete';
+      title: string;
+      start: string;
+      end: string;
+      attendees?: string[];
+    }>;
+  };
+}
+
 export interface MessageItem {
   type: 'message';
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  metadata?: ProposalMetadata;
+  metadata?: ProposalMetadata | BatchProposalMetadata;
 }
 
 export interface ProposalItem {
@@ -30,5 +44,13 @@ export interface ProposalItem {
   group?: string;
 }
 
+export interface BatchProposalItem {
+  type: 'batch_proposal';
+  id: string;
+  entries: BatchProposalEntry[];
+  status: ProposalStatus;
+  removedIds: string[];
+}
+
 /** A single renderable entry in the chat list — either a text message or an event proposal card. */
-export type ChatItem = MessageItem | ProposalItem;
+export type ChatItem = MessageItem | ProposalItem | BatchProposalItem;

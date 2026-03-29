@@ -3,6 +3,7 @@ import { StopReason } from './types';
 import type { SSEEmitter } from '../sse';
 import { SSEEventType, isProposalTool } from '../sse';
 import type { CalendarEvent } from '../googleCalendar';
+import type { BatchProposalEntry } from '../sse';
 
 const MAX_ITERATIONS = 10;
 
@@ -81,33 +82,59 @@ export async function runAgentLoop(
   emit({ event: SSEEventType.Done, data: {} });
 }
 
+function toCalendarEvent(input: Record<string, unknown>): CalendarEvent {
+  return {
+    id: (input.id as string) ?? '',
+    title: (input.title as string) ?? 'Untitled',
+    start: (input.start as string) ?? '',
+    end: (input.end as string) ?? '',
+    allDay: Boolean(input.allDay),
+    attendees: Array.isArray(input.attendees)
+      ? input.attendees.filter((e): e is string => typeof e === 'string').map((email) => ({ email }))
+      : undefined,
+    location: input.location as string | undefined,
+    description: input.description as string | undefined,
+  };
+}
+
+function toAction(input: Record<string, unknown>): 'create' | 'update' | 'delete' {
+  return (['create', 'update', 'delete'].includes(input.action as string)
+    ? input.action as 'create' | 'update' | 'delete'
+    : 'create');
+}
+
 function emitProposals(toolCalls: ToolCall[], emit: SSEEmitter): void {
-  const group = toolCalls.length > 1 ? crypto.randomUUID() : undefined;
+  // Group by action — 2+ same-action proposals become a batch_proposal; singletons stay event_proposal
+  const byAction = new Map<string, ToolCall[]>();
   for (const tc of toolCalls) {
-    const input = tc.input;
-    const event: CalendarEvent = {
-      id: (input.id as string) ?? '',
-      title: (input.title as string) ?? 'Untitled',
-      start: (input.start as string) ?? '',
-      end: (input.end as string) ?? '',
-      allDay: Boolean(input.allDay),
-      attendees: Array.isArray(input.attendees)
-        ? input.attendees.filter((e): e is string => typeof e === 'string').map((email) => ({ email }))
-        : undefined,
-      location: input.location as string | undefined,
-      description: input.description as string | undefined,
-    };
-    emit({
-      event: SSEEventType.EventProposal,
-      data: {
+    const action = toAction(tc.input);
+    const group = byAction.get(action) ?? [];
+    group.push(tc);
+    byAction.set(action, group);
+  }
+
+  for (const [, group] of byAction) {
+    if (group.length >= 2) {
+      const entries: BatchProposalEntry[] = group.map((tc) => ({
         id: tc.id,
-        action: (['create', 'update', 'delete'].includes(input.action as string)
-          ? input.action as 'create' | 'update' | 'delete'
-          : 'create'),
-        group,
-        event,
-      },
-    });
+        action: toAction(tc.input),
+        event: toCalendarEvent(tc.input),
+      }));
+      emit({
+        event: SSEEventType.BatchProposal,
+        data: { batchId: crypto.randomUUID(), entries },
+      });
+    } else {
+      const tc = group[0];
+      emit({
+        event: SSEEventType.EventProposal,
+        data: {
+          id: tc.id,
+          action: toAction(tc.input),
+          event: toCalendarEvent(tc.input),
+        },
+      });
+    }
   }
 }
 

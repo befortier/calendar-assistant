@@ -1,10 +1,11 @@
 import type { ProposalStatus } from '../components/EventCard';
-import type { ChatItem, MessageItem, ProposalItem, ProposalMetadata } from '../types/chat';
+import type { CalendarEvent } from './sse';
+import type { ChatItem, MessageItem, ProposalItem, ProposalMetadata, BatchProposalItem, BatchProposalMetadata } from '../types/chat';
 
 /** Extract only the message items into the shape the chat API expects. */
 export function extractMessages(
   items: ChatItem[],
-): { role: string; content: string; metadata?: ProposalMetadata }[] {
+): { role: string; content: string; metadata?: ProposalMetadata | BatchProposalMetadata }[] {
   return items
     .filter((i): i is MessageItem => i.type === 'message')
     .map(({ role, content, metadata }) => ({ role, content, ...(metadata && { metadata }) }));
@@ -52,4 +53,42 @@ export function buildConfirmText(items: ChatItem[], proposalId: string, accepted
     return `Yes, ${verb} "${event.title}" at ${time}.`;
   }
   return `Yes, ${verb} "${event.title}".`;
+}
+
+/** Build a natural-language confirmation for accepting a batch of proposals. */
+export function buildBatchConfirmText(events: CalendarEvent[], action: 'create' | 'update' | 'delete'): string {
+  const count = events.length;
+  if (count === 0) return 'Yes, go ahead.';
+  if (action === 'delete') {
+    return count === 1
+      ? `Yes, delete "${events[0].title}".`
+      : `Yes, delete all ${count} events.`;
+  }
+  const verb = action === 'update' ? 'update' : 'create';
+  return count === 1
+    ? `Yes, ${verb} "${events[0].title}".`
+    : `Yes, ${verb} all ${count} events.`;
+}
+
+/** Build the metadata payload for a batch proposal acceptance. */
+export function buildBatchMetadata(
+  batch: BatchProposalItem,
+  remainingEvents: CalendarEvent[],
+): BatchProposalMetadata {
+  return {
+    confirmedBatch: {
+      batchId: batch.id,
+      entries: remainingEvents.map((e) => {
+        const entry = batch.entries.find((en) => en.event.id === e.id);
+        return {
+          eventId: e.id,
+          action: entry?.action ?? 'create',
+          title: e.title,
+          start: e.start,
+          end: e.end,
+          attendees: e.attendees?.map((a) => a.email),
+        };
+      }),
+    },
+  };
 }

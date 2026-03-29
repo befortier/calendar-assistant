@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useReducer, useRef, type Dispatch } from 'react';
 import { streamChat } from '../lib/streamChat';
-import { extractMessages, resolveProposal, buildConfirmText } from '../lib/chatHelpers';
+import { extractMessages, resolveProposal, buildConfirmText, buildBatchConfirmText, buildBatchMetadata } from '../lib/chatHelpers';
 import type { SSEEvent } from '../lib/sse';
-import type { ChatItem, ProposalItem } from '../types/chat';
+import type { ChatItem, ProposalItem, BatchProposalItem } from '../types/chat';
 
 // Re-export types that consumers (ChatPage, streamChat) import from this module
-export type { ProposalMetadata, MessageItem, ProposalItem, ChatItem } from '../types/chat';
+export type { ProposalMetadata, MessageItem, ProposalItem, BatchProposalItem, ChatItem } from '../types/chat';
 
 // --- Reducer ---
 
@@ -24,6 +24,8 @@ type ChatAction =
   | { type: 'CLEAR_STATUS' }
   | { type: 'APPEND_DELTA'; text: string }
   | { type: 'ADD_PROPOSAL'; proposal: ProposalItem }
+  | { type: 'ADD_BATCH_PROPOSAL'; proposal: BatchProposalItem }
+  | { type: 'REMOVE_FROM_BATCH'; batchId: string; eventId: string }
   | { type: 'SET_ERROR'; error: string }
   | { type: 'STREAM_DONE' };
 
@@ -79,6 +81,17 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case 'ADD_PROPOSAL':
       return { ...state, items: [...state.items, action.proposal] };
 
+    case 'ADD_BATCH_PROPOSAL':
+      return { ...state, items: [...state.items, action.proposal] };
+
+    case 'REMOVE_FROM_BATCH': {
+      const items = state.items.map((item) => {
+        if (item.type !== 'batch_proposal' || item.id !== action.batchId) return item;
+        return { ...item, removedIds: [...item.removedIds, action.eventId] };
+      });
+      return { ...state, items };
+    }
+
     case 'SET_ERROR':
       return { ...state, error: action.error, loading: false, status: null };
 
@@ -88,6 +101,129 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     default:
       return state;
   }
+}
+
+// --- Proposal response helpers (extracted to reduce hook complexity) ---
+
+type ChatDispatch = Dispatch<ChatAction>;
+type SendStream = (items: ChatItem[]) => Promise<void>;
+
+function hasPendingProposals(items: ChatItem[]): boolean {
+  return items.some(
+    (i) => (i.type === 'event_proposal' || i.type === 'batch_proposal') && i.status === 'pending',
+  );
+}
+
+function makeCancelMessage(): ChatItem {
+  return { type: 'message', id: crypto.randomUUID(), role: 'user', content: 'No, cancel that.' };
+}
+
+async function declineAndMaybeCancel(
+  filtered: ChatItem[],
+  dispatch: ChatDispatch,
+  sendStream: SendStream,
+): Promise<void> {
+  dispatch({ type: 'SET_ITEMS', items: filtered });
+  if (!hasPendingProposals(filtered)) {
+    const allItems = [...filtered, makeCancelMessage()];
+    dispatch({ type: 'SET_ITEMS', items: allItems });
+    await sendStream(allItems);
+  }
+}
+
+async function handleProposalDecline(
+  proposalId: string,
+  items: ChatItem[],
+  dispatch: ChatDispatch,
+  sendStream: SendStream,
+): Promise<void> {
+  const filtered = items.filter(
+    (i) => !(i.type === 'event_proposal' && i.id === proposalId),
+  );
+  await declineAndMaybeCancel(filtered, dispatch, sendStream);
+}
+
+async function handleProposalAccept(
+  proposalId: string,
+  items: ChatItem[],
+  dispatch: ChatDispatch,
+  sendStream: SendStream,
+): Promise<void> {
+  const proposal = items.find(
+    (i): i is ProposalItem => i.type === 'event_proposal' && i.id === proposalId,
+  );
+  const confirmText = buildConfirmText(items, proposalId, true);
+  const resolved = resolveProposal(items, proposalId, true);
+  const metadata = proposal
+    ? {
+        confirmedProposal: {
+          action: proposal.action,
+          eventId: proposal.event.id,
+          title: proposal.event.title,
+          start: proposal.event.start,
+          end: proposal.event.end,
+          attendees: proposal.event.attendees?.map((a) => a.email),
+        },
+      }
+    : undefined;
+
+  const confirmItem = {
+    type: 'message' as const,
+    id: crypto.randomUUID(),
+    role: 'user' as const,
+    content: confirmText,
+    ...(metadata && { metadata }),
+  };
+  const allItems = [...resolved, confirmItem];
+  dispatch({ type: 'SET_ITEMS', items: allItems });
+  await sendStream(allItems);
+}
+
+async function handleBatchDecline(
+  batchId: string,
+  items: ChatItem[],
+  dispatch: ChatDispatch,
+  sendStream: SendStream,
+): Promise<void> {
+  const filtered = items.filter(
+    (i) => !(i.type === 'batch_proposal' && i.id === batchId),
+  );
+  await declineAndMaybeCancel(filtered, dispatch, sendStream);
+}
+
+async function handleBatchAccept(
+  batchId: string,
+  items: ChatItem[],
+  dispatch: ChatDispatch,
+  sendStream: SendStream,
+): Promise<void> {
+  const batch = items.find(
+    (i): i is BatchProposalItem => i.type === 'batch_proposal' && i.id === batchId,
+  );
+  if (!batch) return;
+
+  const remainingEvents = batch.entries
+    .filter((e) => !batch.removedIds.includes(e.event.id))
+    .map((e) => e.event);
+
+  const action = batch.entries[0]?.action ?? 'create';
+  const confirmText = buildBatchConfirmText(remainingEvents, action);
+  const metadata = buildBatchMetadata(batch, remainingEvents);
+
+  const resolved = items.map((i) =>
+    i.type === 'batch_proposal' && i.id === batchId ? { ...i, status: 'accepted' as const } : i,
+  );
+
+  const confirmItem = {
+    type: 'message' as const,
+    id: crypto.randomUUID(),
+    role: 'user' as const,
+    content: confirmText,
+    metadata,
+  };
+  const allItems = [...resolved, confirmItem];
+  dispatch({ type: 'SET_ITEMS', items: allItems });
+  await sendStream(allItems);
 }
 
 // --- Hook ---
@@ -133,6 +269,18 @@ export function useChat() {
           },
         });
         break;
+      case 'batch_proposal':
+        dispatch({
+          type: 'ADD_BATCH_PROPOSAL',
+          proposal: {
+            type: 'batch_proposal',
+            id: event.data.batchId,
+            entries: event.data.entries,
+            status: 'pending',
+            removedIds: [],
+          },
+        });
+        break;
       case 'error':
         dispatch({ type: 'SET_ERROR', error: event.data.message });
         break;
@@ -175,64 +323,23 @@ export function useChat() {
 
   const respondToProposal = useCallback(
     async (proposalId: string, accepted: boolean) => {
-      if (!accepted) {
-        // Decline is local-only: remove the card, then notify the agent only if no other
-        // pending proposals remain (avoids a premature "cancel" when there are alternatives).
-        const filtered = itemsRef.current.filter(
-          (i) => !(i.type === 'event_proposal' && i.id === proposalId),
-        );
-        dispatch({ type: 'SET_ITEMS', items: filtered });
-
-        const remaining = filtered.filter(
-          (i) => i.type === 'event_proposal' && i.status === 'pending',
-        );
-        if (remaining.length === 0) {
-          const declineItem = {
-            type: 'message' as const,
-            id: crypto.randomUUID(),
-            role: 'user' as const,
-            content: 'No, cancel that.',
-          };
-          const allItems = [...filtered, declineItem];
-          dispatch({ type: 'SET_ITEMS', items: allItems });
-          await sendStream(allItems);
-        }
-        return;
-      }
-
-      // Accept: resolve the proposal group eagerly (prevents stale-state overwrite),
-      // then send a natural-language confirmation with structured metadata.
-      const proposal = itemsRef.current.find(
-        (i): i is ProposalItem => i.type === 'event_proposal' && i.id === proposalId,
-      );
-      const confirmText = buildConfirmText(itemsRef.current, proposalId, true);
-      const resolved = resolveProposal(itemsRef.current, proposalId, true);
-      const metadata = proposal
-        ? {
-            confirmedProposal: {
-              action: proposal.action,
-              eventId: proposal.event.id,
-              title: proposal.event.title,
-              start: proposal.event.start,
-              end: proposal.event.end,
-              attendees: proposal.event.attendees?.map((a) => a.email),
-            },
-          }
-        : undefined;
-
-      const confirmItem = {
-        type: 'message' as const,
-        id: crypto.randomUUID(),
-        role: 'user' as const,
-        content: confirmText,
-        ...(metadata && { metadata }),
-      };
-      const allItems = [...resolved, confirmItem];
-      dispatch({ type: 'SET_ITEMS', items: allItems });
-      await sendStream(allItems);
+      if (!accepted) return handleProposalDecline(proposalId, itemsRef.current, dispatch, sendStream);
+      return handleProposalAccept(proposalId, itemsRef.current, dispatch, sendStream);
     },
     [sendStream],
   );
 
-  return { items, loading, status, error, bottomRef, sendMessage, respondToProposal };
+  const removeFromBatch = useCallback((batchId: string, eventId: string) => {
+    dispatch({ type: 'REMOVE_FROM_BATCH', batchId, eventId });
+  }, []);
+
+  const respondToBatch = useCallback(
+    async (batchId: string, accepted: boolean) => {
+      if (!accepted) return handleBatchDecline(batchId, itemsRef.current, dispatch, sendStream);
+      return handleBatchAccept(batchId, itemsRef.current, dispatch, sendStream);
+    },
+    [sendStream],
+  );
+
+  return { items, loading, status, error, bottomRef, sendMessage, respondToProposal, removeFromBatch, respondToBatch };
 }
