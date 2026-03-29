@@ -1,4 +1,4 @@
-import type { GoogleCalendarService, CreateEventInput, UpdateEventInput, EventReminder } from './googleCalendar';
+import type { GoogleCalendarService, CreateEventInput, UpdateEventInput, EventReminder, RecurrenceScope } from './googleCalendar';
 import { invertBusy } from './googleCalendar';
 
 function asString(v: unknown, field: string): string {
@@ -87,6 +87,9 @@ async function handleUpdateEvent(
   service: GoogleCalendarService,
 ): Promise<string> {
   const id = asString(input.id, 'id');
+  const scope = input.recurrence_scope != null
+    ? asString(input.recurrence_scope, 'recurrence_scope') as RecurrenceScope
+    : undefined;
   const updates: UpdateEventInput = {};
   if (input.title != null) updates.title = asString(input.title, 'title');
   if (input.start != null) updates.start = asString(input.start, 'start');
@@ -96,7 +99,7 @@ async function handleUpdateEvent(
   if (input.location != null) updates.location = asString(input.location, 'location');
   if (input.reminders != null) updates.reminders = asReminders(input.reminders, 'reminders');
   if (input.allDay != null) updates.allDay = Boolean(input.allDay);
-  const event = await service.updateEvent(id, updates);
+  const event = await service.updateEvent(id, updates, scope);
   return JSON.stringify(event);
 }
 
@@ -105,7 +108,10 @@ async function handleDeleteEvent(
   service: GoogleCalendarService,
 ): Promise<string> {
   const id = asString(input.id, 'id');
-  await service.deleteEvent(id);
+  const scope = input.recurrence_scope != null
+    ? asString(input.recurrence_scope, 'recurrence_scope') as RecurrenceScope
+    : undefined;
+  await service.deleteEvent(id, scope);
   return JSON.stringify({ success: true });
 }
 

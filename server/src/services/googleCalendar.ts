@@ -77,6 +77,8 @@ export interface UpdateEventInput {
   allDay?: boolean;
 }
 
+export type RecurrenceScope = 'this' | 'this_and_following' | 'all';
+
 export class GoogleCalendarService {
   private readonly calendarId = 'primary';
 
@@ -153,7 +155,7 @@ export class GoogleCalendarService {
     return event;
   }
 
-  async updateEvent(eventId: string, updates: UpdateEventInput): Promise<CalendarEvent> {
+  async updateEvent(eventId: string, updates: UpdateEventInput, scope?: RecurrenceScope): Promise<CalendarEvent> {
     // Use patch (not events.update) so only provided fields are sent — unspecified fields remain unchanged
     const requestBody: calendar_v3.Schema$Event = {};
     if (updates.title       !== undefined) requestBody.summary     = updates.title;
@@ -164,13 +166,35 @@ export class GoogleCalendarService {
     if (updates.location    !== undefined) requestBody.location    = updates.location;
     if (updates.reminders   !== undefined) requestBody.reminders   = { useDefault: false, overrides: updates.reminders };
 
-    const res = await this.calendar.events.patch({ calendarId: this.calendarId, eventId, requestBody });
+    // 'all' and 'this_and_following' both target the master event (series-level patch).
+    // 'this' or no scope targets the instance ID directly.
+    const targetId = (scope === 'all' || scope === 'this_and_following')
+      ? stripRecurrenceSuffix(eventId)
+      : eventId;
+
+    const res = await this.calendar.events.patch({ calendarId: this.calendarId, eventId: targetId, requestBody });
     const event = normalizeEvent(res.data);
     if (!event) throw new Error('updateEvent: Google returned an event with missing start/end');
     return event;
   }
 
-  async deleteEvent(eventId: string): Promise<void> {
+  async deleteEvent(eventId: string, scope?: RecurrenceScope): Promise<void> {
+    if (scope === 'all') {
+      await this.calendar.events.delete({ calendarId: this.calendarId, eventId: stripRecurrenceSuffix(eventId) });
+      return;
+    }
+
+    if (scope === 'this_and_following') {
+      const masterId = stripRecurrenceSuffix(eventId);
+      const masterRes = await this.calendar.events.get({ calendarId: this.calendarId, eventId: masterId });
+      const recurrence = (masterRes.data.recurrence ?? []).map((rule) =>
+        rule.startsWith('RRULE:') ? truncateRruleUntil(rule, eventId) : rule,
+      );
+      await this.calendar.events.patch({ calendarId: this.calendarId, eventId: masterId, requestBody: { recurrence } });
+      return;
+    }
+
+    // 'this' or no scope: delete the instance (or single event) as-is
     await this.calendar.events.delete({ calendarId: this.calendarId, eventId });
   }
 }
@@ -235,6 +259,27 @@ export function invertBusy(busy: BusyBlock[], start: Date, end: Date): FreeSlot[
   }
 
   return slots;
+}
+
+// Strips the `_YYYYMMDDTHHMMSSZ` or `_YYYYMMDD` instance suffix from a
+// recurring event ID to obtain the master event ID.
+function stripRecurrenceSuffix(eventId: string): string {
+  return eventId.replace(/_\d{8}(T\d{6}Z)?$/, '');
+}
+
+// Appends `UNTIL=<one second before instanceStart>` to an RRULE string,
+// effectively ending the series just before the given instance.
+function truncateRruleUntil(rrule: string, instanceEventId: string): string {
+  const match = instanceEventId.match(/_(\d{8}T\d{6}Z)$/);
+  if (!match) return rrule;
+  const instanceStart = new Date(
+    match[1].replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/, '$1-$2-$3T$4:$5:$6Z'),
+  );
+  const until = new Date(instanceStart.getTime() - 1000);
+  const untilStr = until.toISOString().replace(/[-:]/g, '').replace('.000', '');
+  // Remove existing UNTIL/COUNT if present, then append new UNTIL
+  const stripped = rrule.replace(/;?(UNTIL|COUNT)=[^;]*/g, '');
+  return `${stripped};UNTIL=${untilStr}`;
 }
 
 function resolveAccessStatus(reason: string): CalendarAccessStatus {

@@ -73,11 +73,16 @@ export const calendarTools: ToolDefinition[] = [
   },
   {
     name: 'update_event',
-    description: `Updates an existing event. Partial patch — only provided fields change. Only call after the user has confirmed. The id must come from a prior get_events or create_event result.`,
+    description: `Updates an existing event. Partial patch — only provided fields change. Only call after the user has confirmed. The id must come from a prior get_events or create_event result. For recurring events, recurrence_scope must be set — ask the user which scope they want before calling.`,
     inputSchema: {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'Event ID from get_events or create_event' },
+        recurrence_scope: {
+          type: 'string',
+          enum: ['this', 'this_and_following', 'all'],
+          description: 'For recurring events: "this" updates only this instance, "this_and_following" updates this and all following instances, "all" updates the entire series. Omit for non-recurring events.',
+        },
         title: { type: 'string', description: 'New title' },
         start: { type: 'string', description: 'New start datetime (ISO 8601)' },
         end: { type: 'string', description: 'New end datetime (ISO 8601)' },
@@ -102,11 +107,16 @@ export const calendarTools: ToolDefinition[] = [
   },
   {
     name: 'delete_event',
-    description: `Deletes an event. Irreversible. Only call after the user has confirmed. The id must come from a prior get_events or create_event result.`,
+    description: `Deletes an event. Irreversible. Only call after the user has confirmed. The id must come from a prior get_events or create_event result. For recurring events, recurrence_scope must be set — ask the user which scope they want before calling.`,
     inputSchema: {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'Event ID from get_events or create_event' },
+        recurrence_scope: {
+          type: 'string',
+          enum: ['this', 'this_and_following', 'all'],
+          description: 'For recurring events: "this" deletes only this instance, "this_and_following" deletes this and all following instances, "all" deletes the entire series. Omit for non-recurring events.',
+        },
       },
       required: ['id'],
     },

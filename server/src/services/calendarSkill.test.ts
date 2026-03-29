@@ -219,7 +219,7 @@ describe('dispatchTool: update_event', () => {
       service,
     );
 
-    expect(mockUpdate).toHaveBeenCalledWith('evt-123', { title: 'New title' });
+    expect(mockUpdate).toHaveBeenCalledWith('evt-123', { title: 'New title' }, undefined);
     expect(JSON.parse(result).id).toBe('evt-123');
   });
 });
@@ -235,8 +235,72 @@ describe('dispatchTool: delete_event', () => {
 
     const result = await dispatchTool('delete_event', { id: 'evt-abc' }, service);
 
-    expect(mockDelete).toHaveBeenCalledWith('evt-abc');
+    expect(mockDelete).toHaveBeenCalledWith('evt-abc', undefined);
     expect(JSON.parse(result)).toEqual({ success: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// update_event — recurrence_scope
+// ---------------------------------------------------------------------------
+
+describe('dispatchTool: update_event with recurrence_scope', () => {
+  it('passes recurrence_scope to service.updateEvent', async () => {
+    const mockUpdate = vi.fn().mockResolvedValue({
+      id: 'master_20260322T090000Z',
+      title: 'Updated',
+      start: '2026-03-22T09:00:00Z',
+      end: '2026-03-22T09:30:00Z',
+      allDay: false,
+    });
+    const service = makeService({ updateEvent: mockUpdate });
+
+    await dispatchTool(
+      'update_event',
+      { id: 'master_20260322T090000Z', title: 'Updated', recurrence_scope: 'this' },
+      service,
+    );
+
+    expect(mockUpdate).toHaveBeenCalledWith('master_20260322T090000Z', { title: 'Updated' }, 'this');
+  });
+
+  it('passes undefined scope when recurrence_scope is absent', async () => {
+    const mockUpdate = vi.fn().mockResolvedValue({
+      id: 'evt-123',
+      title: 'New title',
+      start: '2026-03-22T10:00:00Z',
+      end: '2026-03-22T10:30:00Z',
+      allDay: false,
+    });
+    const service = makeService({ updateEvent: mockUpdate });
+
+    await dispatchTool('update_event', { id: 'evt-123', title: 'New title' }, service);
+
+    expect(mockUpdate).toHaveBeenCalledWith('evt-123', { title: 'New title' }, undefined);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// delete_event — recurrence_scope
+// ---------------------------------------------------------------------------
+
+describe('dispatchTool: delete_event with recurrence_scope', () => {
+  it('passes recurrence_scope to service.deleteEvent', async () => {
+    const mockDelete = vi.fn().mockResolvedValue(undefined);
+    const service = makeService({ deleteEvent: mockDelete });
+
+    await dispatchTool('delete_event', { id: 'master_20260322T090000Z', recurrence_scope: 'all' }, service);
+
+    expect(mockDelete).toHaveBeenCalledWith('master_20260322T090000Z', 'all');
+  });
+
+  it('passes undefined scope when recurrence_scope is absent', async () => {
+    const mockDelete = vi.fn().mockResolvedValue(undefined);
+    const service = makeService({ deleteEvent: mockDelete });
+
+    await dispatchTool('delete_event', { id: 'evt-abc' }, service);
+
+    expect(mockDelete).toHaveBeenCalledWith('evt-abc', undefined);
   });
 });
 

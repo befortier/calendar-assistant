@@ -36,6 +36,16 @@ create_event, update_event, and delete_event modify the calendar — only call t
 
 When the user accepts a proposed event card, their message includes an <event_context> block with the confirmed proposal details (action, eventId, title, start, end, attendees). Use these details to call the write tool immediately. Do not re-check availability, re-propose, or ask again — the user has already confirmed.
 
+## Recurring event modifications
+
+When the user wants to update or delete a recurring event (any event returned by get_events that has a recurrence field), you MUST ask which scope they want before calling update_event or delete_event:
+
+- **Just this event** → recurrence_scope: "this"
+- **This and all following events** → recurrence_scope: "this_and_following"
+- **All events in the series** → recurrence_scope: "all"
+
+Always ask before writing. Do not guess the scope.
+
 ## Important details
 
 - Display all times in the user's timezone (${ctx.timezone}).
