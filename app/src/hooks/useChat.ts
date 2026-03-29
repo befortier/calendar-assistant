@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { streamChat } from '../lib/streamChat';
 import { extractMessages, resolveProposal, buildConfirmText } from '../lib/chatHelpers';
 import type { SSEEvent } from '../lib/sse';
-import type { ProposalItem } from '../types/chat';
+import type { ChatItem, ProposalItem } from '../types/chat';
 
 // Re-export types that consumers (ChatPage, streamChat) import from this module
 export type { ProposalMetadata, MessageItem, ProposalItem, ChatItem } from '../types/chat';
@@ -10,7 +10,7 @@ export type { ProposalMetadata, MessageItem, ProposalItem, ChatItem } from '../t
 // --- Reducer ---
 
 interface ChatState {
-  items: import('../types/chat').ChatItem[];
+  items: ChatItem[];
   loading: boolean;
   status: string | null;
   error: string | null;
@@ -104,7 +104,8 @@ export function useChat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [items, status]);
 
-  // Translate raw SSE events into reducer actions
+  // Translate raw SSE events into reducer actions.
+  // dispatch is stable (guaranteed by useReducer) — empty dep array is intentional.
   const handleEvent = useCallback((event: SSEEvent) => {
     switch (event.event) {
       case 'status':
