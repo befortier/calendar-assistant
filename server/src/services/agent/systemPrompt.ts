@@ -3,6 +3,8 @@ export interface UserContext {
   timezone: string;
   now?: Date;
   preferences?: string;
+  calendarId?: string;
+  calendarName?: string;
 }
 
 export function buildSystemPrompt(ctx: UserContext): string {
@@ -10,10 +12,12 @@ export function buildSystemPrompt(ctx: UserContext): string {
   const preferencesSection = ctx.preferences?.trim()
     ? `\n\n## User preferences\n\n<user_preferences>\n${ctx.preferences.trim()}\n</user_preferences>\n\nApply these preferences when scheduling or making suggestions. Do not ask for information already captured here.`
     : '';
+  const calendarLabel = ctx.calendarName ?? ctx.calendarId ?? 'primary';
   return `You are a calendar assistant for ${ctx.email}. You help read, schedule, update, and delete Google Calendar events. Be concise and professional.${preferencesSection}
 
 Current time: ${now.toISOString()}
 Timezone: ${ctx.timezone}
+Active calendar: ${calendarLabel}
 
 ## Before scheduling, gather the basics
 

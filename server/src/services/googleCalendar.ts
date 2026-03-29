@@ -27,6 +27,13 @@ export interface CalendarEvent {
   meetLink?: string;
 }
 
+export interface CalendarInfo {
+  id: string;
+  summary: string;
+  backgroundColor?: string;
+  primary: boolean;
+}
+
 export interface FreeSlot {
   start: string;
   end: string;
@@ -80,9 +87,22 @@ export interface UpdateEventInput {
 export type RecurrenceScope = 'this' | 'this_and_following' | 'all';
 
 export class GoogleCalendarService {
-  private readonly calendarId = 'primary';
+  constructor(
+    private readonly calendar: calendar_v3.Calendar,
+    private readonly calendarId = 'primary',
+  ) {}
 
-  constructor(private readonly calendar: calendar_v3.Calendar) {}
+  async listCalendars(): Promise<CalendarInfo[]> {
+    const res = await this.calendar.calendarList.list({ minAccessRole: 'reader' });
+    return (res.data.items ?? [])
+      .map((item) => ({
+        id: item.id ?? '',
+        summary: item.summaryOverride ?? item.summary ?? '',
+        backgroundColor: item.backgroundColor ?? undefined,
+        primary: item.primary ?? false,
+      }))
+      .filter((c) => c.id !== '');
+  }
 
   async getEvents(start: Date, end: Date): Promise<CalendarEvent[]> {
     const res = await this.calendar.events.list({
@@ -211,6 +231,7 @@ export function createGoogleCalendarService(
   refreshToken: string,
   config: Pick<Config, 'GOOGLE_CLIENT_ID' | 'GOOGLE_CLIENT_SECRET'>,
   onTokenRefresh?: (tokens: { accessToken: string; refreshToken?: string }) => void,
+  calendarId = 'primary',
 ): GoogleCalendarService {
   const auth = new google.auth.OAuth2(config.GOOGLE_CLIENT_ID, config.GOOGLE_CLIENT_SECRET);
   auth.setCredentials({ access_token: accessToken, refresh_token: refreshToken });
@@ -226,7 +247,7 @@ export function createGoogleCalendarService(
     });
   }
 
-  return new GoogleCalendarService(google.calendar({ version: 'v3', auth }));
+  return new GoogleCalendarService(google.calendar({ version: 'v3', auth }), calendarId);
 }
 
 // ---------------------------------------------------------------------------

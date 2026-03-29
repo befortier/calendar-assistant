@@ -10,6 +10,7 @@ function makeCalendar(
     patch?: ReturnType<typeof vi.fn>;
     delete?: ReturnType<typeof vi.fn>;
     get?: ReturnType<typeof vi.fn>;
+    calendarListList?: ReturnType<typeof vi.fn>;
   },
 ): calendar_v3.Calendar {
   return {
@@ -22,6 +23,9 @@ function makeCalendar(
     },
     freebusy: {
       query: overrides?.freebusyQuery ?? vi.fn(),
+    },
+    calendarList: {
+      list: overrides?.calendarListList ?? vi.fn().mockResolvedValue({ data: { items: [] } }),
     },
   } as unknown as calendar_v3.Calendar;
 }
@@ -885,5 +889,56 @@ describe('GoogleCalendarService.updateEvent — recurrence scope', () => {
     await expect(service.updateEvent('masteronly', { title: 'x' }, 'this_and_following')).rejects.toThrow(
       'this_and_following requires an instance event ID',
     );
+  });
+});
+
+describe('GoogleCalendarService.listCalendars', () => {
+  it('returns normalized calendar entries', async () => {
+    const mockList = vi.fn().mockResolvedValue({
+      data: {
+        items: [
+          { id: 'primary', summary: 'My Calendar', backgroundColor: '#4285f4', primary: true },
+          { id: 'work@example.com', summary: 'Work', summaryOverride: 'Work Override', backgroundColor: '#db4437', primary: false },
+          { id: 'other@example.com', summary: 'Other', primary: false },
+        ],
+      },
+    });
+    const service = new GoogleCalendarService(makeCalendar([], { calendarListList: mockList }));
+
+    const result = await service.listCalendars();
+
+    expect(result).toEqual([
+      { id: 'primary', summary: 'My Calendar', backgroundColor: '#4285f4', primary: true },
+      { id: 'work@example.com', summary: 'Work Override', backgroundColor: '#db4437', primary: false },
+      { id: 'other@example.com', summary: 'Other', backgroundColor: undefined, primary: false },
+    ]);
+    expect(mockList).toHaveBeenCalledWith({ minAccessRole: 'reader' });
+  });
+
+  it('filters out entries with no id', async () => {
+    const mockList = vi.fn().mockResolvedValue({
+      data: {
+        items: [
+          { id: 'primary', summary: 'Mine', primary: true },
+          { id: '', summary: 'Bad', primary: false },
+          { summary: 'Also bad', primary: false },
+        ],
+      },
+    });
+    const service = new GoogleCalendarService(makeCalendar([], { calendarListList: mockList }));
+
+    const result = await service.listCalendars();
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('primary');
+  });
+
+  it('returns empty array when items is undefined', async () => {
+    const mockList = vi.fn().mockResolvedValue({ data: {} });
+    const service = new GoogleCalendarService(makeCalendar([], { calendarListList: mockList }));
+
+    const result = await service.listCalendars();
+
+    expect(result).toEqual([]);
   });
 });
