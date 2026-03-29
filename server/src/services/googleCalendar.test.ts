@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { GoogleCalendarService, invertBusy } from './googleCalendar';
+import { GoogleCalendarService } from './googleCalendar';
+import { invertBusy } from './calendarAlgorithms';
 import type { calendar_v3 } from 'googleapis';
 
 function makeCalendar(
