@@ -1,6 +1,6 @@
 import { parseSSEChunk, type SSEEvent } from './sse';
 import { useAuthStore } from '../stores/auth';
-import type { ProposalMetadata } from '../hooks/useChat';
+import type { ProposalMetadata } from '../types/chat';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 

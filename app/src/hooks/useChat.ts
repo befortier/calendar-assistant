@@ -1,149 +1,102 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { streamChat } from '../lib/streamChat';
-import type { CalendarEvent, SSEEvent } from '../lib/sse';
-import type { ProposalStatus, ProposalAction } from '../components/EventCard';
+import { extractMessages, resolveProposal, buildConfirmText } from '../lib/chatHelpers';
+import type { SSEEvent } from '../lib/sse';
+import type { ChatItem, ProposalItem } from '../types/chat';
 
-export interface ProposalMetadata {
-  confirmedProposal: {
-    action: 'create' | 'update' | 'delete';
-    eventId: string;
-    title: string;
-    start: string;
-    end: string;
-    attendees?: string[];
-  };
+// Re-export types that consumers (ChatPage, streamChat) import from this module
+export type { ProposalMetadata, MessageItem, ProposalItem, ChatItem } from '../types/chat';
+
+// --- Reducer ---
+
+interface ChatState {
+  items: ChatItem[];
+  loading: boolean;
+  status: string | null;
+  error: string | null;
 }
 
-export interface MessageItem {
-  type: 'message';
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  metadata?: ProposalMetadata;
-}
+type ChatAction =
+  | { type: 'SET_ITEMS'; items: ChatState['items'] }
+  | { type: 'STREAM_START'; id: string }
+  | { type: 'STATUS_TICK'; id: string }
+  | { type: 'TOOL_CALL'; tool: string }
+  | { type: 'CLEAR_STATUS' }
+  | { type: 'APPEND_DELTA'; text: string }
+  | { type: 'ADD_PROPOSAL'; proposal: ProposalItem }
+  | { type: 'SET_ERROR'; error: string }
+  | { type: 'STREAM_DONE' };
 
-export interface ProposalItem {
-  type: 'event_proposal';
-  id: string;
-  action: ProposalAction;
-  event: CalendarEvent;
-  status: ProposalStatus;
-  group?: string;
-}
+const initialState: ChatState = { items: [], loading: false, status: null, error: null };
 
-export type ChatItem = MessageItem | ProposalItem;
+function chatReducer(state: ChatState, action: ChatAction): ChatState {
+  switch (action.type) {
+    case 'SET_ITEMS':
+      return { ...state, items: action.items };
 
-function extractMessages(items: ChatItem[]): { role: string; content: string; metadata?: ProposalMetadata }[] {
-  return items
-    .filter((i): i is MessageItem => i.type === 'message')
-    .map(({ role, content, metadata }) => ({ role, content, ...(metadata && { metadata }) }));
-}
+    case 'STREAM_START':
+      return {
+        ...state,
+        loading: true,
+        error: null,
+        status: null,
+        items: [
+          ...state.items,
+          { type: 'message', id: action.id, role: 'assistant', content: '' },
+        ],
+      };
 
-function resolveProposal(items: ChatItem[], proposalId: string, accepted: boolean): ChatItem[] {
-  const proposal = items.find(
-    (i): i is ProposalItem => i.type === 'event_proposal' && i.id === proposalId,
-  );
-
-  return items.map((item) => {
-    if (item.type !== 'event_proposal') return item;
-    if (item.id === proposalId) {
-      return { ...item, status: (accepted ? 'accepted' : 'declined') as ProposalStatus };
+    case 'STATUS_TICK': {
+      // If the last assistant message already has content (agent spoke before a tool call),
+      // open a fresh placeholder for the next response segment.
+      const last = state.items[state.items.length - 1];
+      const needsPlaceholder =
+        last?.type === 'message' && last.role === 'assistant' && Boolean(last.content.trim());
+      return {
+        ...state,
+        status: 'Thinking…',
+        items: needsPlaceholder
+          ? [...state.items, { type: 'message', id: action.id, role: 'assistant', content: '' }]
+          : state.items,
+      };
     }
-    if (accepted && item.group && item.group === proposal?.group && item.status === 'pending') {
-      return { ...item, status: 'declined' as ProposalStatus };
+
+    case 'TOOL_CALL':
+      return { ...state, status: `Using ${action.tool.replace(/_/g, ' ')}…` };
+
+    case 'CLEAR_STATUS':
+      return { ...state, status: null };
+
+    case 'APPEND_DELTA': {
+      const items = [...state.items];
+      const last = items[items.length - 1];
+      if (last?.type === 'message' && last.role === 'assistant') {
+        items[items.length - 1] = { ...last, content: last.content + action.text };
+      }
+      return { ...state, items };
     }
-    return item;
-  });
-}
 
-function buildConfirmText(items: ChatItem[], proposalId: string, accepted: boolean): string {
-  if (!accepted) return 'No, cancel that.';
-  const proposal = items.find(
-    (i): i is ProposalItem => i.type === 'event_proposal' && i.id === proposalId,
-  );
-  if (!proposal) return 'Yes, go ahead.';
+    case 'ADD_PROPOSAL':
+      return { ...state, items: [...state.items, action.proposal] };
 
-  const { action, event } = proposal;
-  if (action === 'delete') {
-    return event.title && event.title !== 'Untitled'
-      ? `Yes, delete "${event.title}".`
-      : 'Yes, delete it.';
+    case 'SET_ERROR':
+      return { ...state, error: action.error, loading: false, status: null };
+
+    case 'STREAM_DONE':
+      return { ...state, loading: false, status: null };
+
+    default:
+      return state;
   }
-
-  const verb = action === 'update' ? 'update' : 'create';
-  if (event.start) {
-    const time = new Date(event.start).toLocaleString();
-    return `Yes, ${verb} "${event.title}" at ${time}.`;
-  }
-  return `Yes, ${verb} "${event.title}".`;
 }
 
-interface EventHandlerDeps {
-  setItems: React.Dispatch<React.SetStateAction<ChatItem[]>>;
-  setStatus: React.Dispatch<React.SetStateAction<string | null>>;
-  setError: React.Dispatch<React.SetStateAction<string | null>>;
-  setLoading: React.Dispatch<React.SetStateAction<boolean>>;
-}
-
-function createEventHandler(deps: EventHandlerDeps) {
-  return (event: SSEEvent) => {
-    switch (event.event) {
-      case 'status':
-        deps.setStatus('Thinking…');
-        deps.setItems((prev) => {
-          const last = prev[prev.length - 1];
-          if (last?.type === 'message' && last.role === 'assistant' && last.content.trim()) {
-            return [...prev, { type: 'message', id: crypto.randomUUID(), role: 'assistant', content: '' }];
-          }
-          return prev;
-        });
-        break;
-      case 'tool_call':
-        deps.setStatus(`Using ${event.data.tool.replace(/_/g, ' ')}…`);
-        break;
-      case 'tool_result':
-        deps.setStatus(null);
-        break;
-      case 'delta':
-        deps.setItems((prev) => {
-          const updated = [...prev];
-          const last = updated[updated.length - 1];
-          if (last.type === 'message' && last.role === 'assistant') {
-            updated[updated.length - 1] = { ...last, content: last.content + event.data.text };
-          }
-          return updated;
-        });
-        break;
-      case 'event_proposal':
-        deps.setItems((prev) => [
-          ...prev,
-          {
-            type: 'event_proposal',
-            id: event.data.id,
-            action: event.data.action,
-            event: event.data.event,
-            status: 'pending' as ProposalStatus,
-            group: event.data.group,
-          },
-        ]);
-        break;
-      case 'error':
-        deps.setError(event.data.message);
-        break;
-      case 'done':
-        deps.setLoading(false);
-        deps.setStatus(null);
-        break;
-    }
-  };
-}
+// --- Hook ---
 
 export function useChat() {
-  const [items, setItems] = useState<ChatItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [{ items, loading, status, error }, dispatch] = useReducer(chatReducer, initialState);
+
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Stable ref so async callbacks can read current items without stale closures
   const itemsRef = useRef(items);
   itemsRef.current = items;
 
@@ -151,78 +104,135 @@ export function useChat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [items, status]);
 
-  const handleEvent = useCallback(
-    createEventHandler({ setItems, setStatus, setError, setLoading }),
-    [],
+  // Translate raw SSE events into reducer actions.
+  // dispatch is stable (guaranteed by useReducer) — empty dep array is intentional.
+  const handleEvent = useCallback((event: SSEEvent) => {
+    switch (event.event) {
+      case 'status':
+        dispatch({ type: 'STATUS_TICK', id: crypto.randomUUID() });
+        break;
+      case 'tool_call':
+        dispatch({ type: 'TOOL_CALL', tool: event.data.tool });
+        break;
+      case 'tool_result':
+        dispatch({ type: 'CLEAR_STATUS' });
+        break;
+      case 'delta':
+        dispatch({ type: 'APPEND_DELTA', text: event.data.text });
+        break;
+      case 'event_proposal':
+        dispatch({
+          type: 'ADD_PROPOSAL',
+          proposal: {
+            type: 'event_proposal',
+            id: event.data.id,
+            action: event.data.action,
+            event: event.data.event,
+            status: 'pending',
+            group: event.data.group,
+          },
+        });
+        break;
+      case 'error':
+        dispatch({ type: 'SET_ERROR', error: event.data.message });
+        break;
+      case 'done':
+        dispatch({ type: 'STREAM_DONE' });
+        break;
+    }
+  }, []);
+
+  const sendStream = useCallback(
+    async (allItems: ChatState['items']) => {
+      dispatch({ type: 'STREAM_START', id: crypto.randomUUID() });
+      try {
+        await streamChat(
+          extractMessages(allItems),
+          Intl.DateTimeFormat().resolvedOptions().timeZone,
+          handleEvent,
+        );
+      } catch {
+        dispatch({ type: 'SET_ERROR', error: 'Connection lost. Please try again.' });
+      }
+    },
+    [handleEvent],
   );
 
-  const sendStream = useCallback(async (allItems: ChatItem[]) => {
-    setItems((prev) => [...prev, { type: 'message', id: crypto.randomUUID(), role: 'assistant', content: '' }]);
-    setLoading(true);
-    setError(null);
-    setStatus(null);
+  const sendMessage = useCallback(
+    async (text: string) => {
+      const userItem = {
+        type: 'message' as const,
+        id: crypto.randomUUID(),
+        role: 'user' as const,
+        content: text,
+      };
+      const allItems = [...itemsRef.current, userItem];
+      dispatch({ type: 'SET_ITEMS', items: allItems });
+      await sendStream(allItems);
+    },
+    [sendStream],
+  );
 
-    try {
-      await streamChat(extractMessages(allItems), Intl.DateTimeFormat().resolvedOptions().timeZone, handleEvent);
-    } catch {
-      setError('Connection lost. Please try again.');
-      setLoading(false);
-      setStatus(null);
-    }
-  }, [handleEvent]);
+  const respondToProposal = useCallback(
+    async (proposalId: string, accepted: boolean) => {
+      if (!accepted) {
+        // Decline is local-only: remove the card, then notify the agent only if no other
+        // pending proposals remain (avoids a premature "cancel" when there are alternatives).
+        const filtered = itemsRef.current.filter(
+          (i) => !(i.type === 'event_proposal' && i.id === proposalId),
+        );
+        dispatch({ type: 'SET_ITEMS', items: filtered });
 
-  const sendMessage = useCallback(async (text: string) => {
-    const userItem: MessageItem = { type: 'message', id: crypto.randomUUID(), role: 'user', content: text };
-    const allItems = [...itemsRef.current, userItem];
-    setItems(allItems);
-    await sendStream(allItems);
-  }, [sendStream]);
-
-  const respondToProposal = useCallback(async (proposalId: string, accepted: boolean) => {
-    if (!accepted) {
-      // Decline is local-only: compute filtered list first to avoid stale ref reads
-      const filtered = itemsRef.current.filter((i) => !(i.type === 'event_proposal' && i.id === proposalId));
-      setItems(filtered);
-
-      // Check if this was the last pending option — if so, notify agent
-      const remaining = filtered.filter(
-        (i) => i.type === 'event_proposal' && i.status === 'pending',
-      );
-      if (remaining.length === 0) {
-        const declineItem: MessageItem = {
-          type: 'message', id: crypto.randomUUID(), role: 'user', content: 'No, cancel that.',
-        };
-        const allItems = [...filtered, declineItem];
-        setItems(allItems);
-        await sendStream(allItems);
+        const remaining = filtered.filter(
+          (i) => i.type === 'event_proposal' && i.status === 'pending',
+        );
+        if (remaining.length === 0) {
+          const declineItem = {
+            type: 'message' as const,
+            id: crypto.randomUUID(),
+            role: 'user' as const,
+            content: 'No, cancel that.',
+          };
+          const allItems = [...filtered, declineItem];
+          dispatch({ type: 'SET_ITEMS', items: allItems });
+          await sendStream(allItems);
+        }
+        return;
       }
-      return;
-    }
 
-    // Accept: apply resolveProposal eagerly to avoid stale state overwrite
-    const proposal = itemsRef.current.find(
-      (i): i is ProposalItem => i.type === 'event_proposal' && i.id === proposalId,
-    );
-    const confirmText = buildConfirmText(itemsRef.current, proposalId, true);
-    const resolved = resolveProposal(itemsRef.current, proposalId, true);
-    const metadata: ProposalMetadata | undefined = proposal ? {
-      confirmedProposal: {
-        action: proposal.action,
-        eventId: proposal.event.id,
-        title: proposal.event.title,
-        start: proposal.event.start,
-        end: proposal.event.end,
-        attendees: proposal.event.attendees?.map((a) => a.email),
-      },
-    } : undefined;
-    const confirmItem: MessageItem = {
-      type: 'message', id: crypto.randomUUID(), role: 'user', content: confirmText,
-      ...(metadata && { metadata }),
-    };
-    const allItems = [...resolved, confirmItem];
-    setItems(allItems);
-    await sendStream(allItems);
-  }, [sendStream]);
+      // Accept: resolve the proposal group eagerly (prevents stale-state overwrite),
+      // then send a natural-language confirmation with structured metadata.
+      const proposal = itemsRef.current.find(
+        (i): i is ProposalItem => i.type === 'event_proposal' && i.id === proposalId,
+      );
+      const confirmText = buildConfirmText(itemsRef.current, proposalId, true);
+      const resolved = resolveProposal(itemsRef.current, proposalId, true);
+      const metadata = proposal
+        ? {
+            confirmedProposal: {
+              action: proposal.action,
+              eventId: proposal.event.id,
+              title: proposal.event.title,
+              start: proposal.event.start,
+              end: proposal.event.end,
+              attendees: proposal.event.attendees?.map((a) => a.email),
+            },
+          }
+        : undefined;
+
+      const confirmItem = {
+        type: 'message' as const,
+        id: crypto.randomUUID(),
+        role: 'user' as const,
+        content: confirmText,
+        ...(metadata && { metadata }),
+      };
+      const allItems = [...resolved, confirmItem];
+      dispatch({ type: 'SET_ITEMS', items: allItems });
+      await sendStream(allItems);
+    },
+    [sendStream],
+  );
 
   return { items, loading, status, error, bottomRef, sendMessage, respondToProposal };
 }
