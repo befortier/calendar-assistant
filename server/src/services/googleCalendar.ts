@@ -185,6 +185,9 @@ export class GoogleCalendarService {
     }
 
     if (scope === 'this_and_following') {
+      if (!eventId.match(/_\d{8}T\d{6}Z$/)) {
+        throw new Error(`deleteEvent: this_and_following requires an instance event ID (got '${eventId}')`);
+      }
       const masterId = stripRecurrenceSuffix(eventId);
       const masterRes = await this.calendar.events.get({ calendarId: this.calendarId, eventId: masterId });
       const recurrence = (masterRes.data.recurrence ?? []).map((rule) =>
@@ -277,9 +280,10 @@ function truncateRruleUntil(rrule: string, instanceEventId: string): string {
   );
   const until = new Date(instanceStart.getTime() - 1000);
   const untilStr = until.toISOString().replace(/[-:]/g, '').replace('.000', '');
-  // Remove existing UNTIL/COUNT if present, then append new UNTIL
-  const stripped = rrule.replace(/;?(UNTIL|COUNT)=[^;]*/g, '');
-  return `${stripped};UNTIL=${untilStr}`;
+  // Remove existing UNTIL/COUNT via split/filter to avoid malformed output
+  const parts = rrule.replace(/^RRULE:/, '').split(';')
+    .filter((p) => !p.startsWith('UNTIL=') && !p.startsWith('COUNT='));
+  return `RRULE:${parts.join(';')};UNTIL=${untilStr}`;
 }
 
 function resolveAccessStatus(reason: string): CalendarAccessStatus {

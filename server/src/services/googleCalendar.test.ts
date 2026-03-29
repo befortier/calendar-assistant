@@ -780,6 +780,43 @@ describe('GoogleCalendarService.deleteEvent — recurrence scope', () => {
     expect(mockDelete).toHaveBeenCalledWith({ calendarId: 'primary', eventId: 'master' });
   });
 
+  it("scope 'this_and_following' produces valid RRULE when existing RRULE has UNTIL before FREQ", async () => {
+    const mockGet = vi.fn().mockResolvedValue({
+      data: {
+        id: 'master',
+        summary: 'Weekly',
+        start: { dateTime: '2026-03-01T09:00:00Z' },
+        end:   { dateTime: '2026-03-01T09:30:00Z' },
+        recurrence: ['RRULE:UNTIL=20261231T235959Z;FREQ=WEEKLY;BYDAY=MO'],
+      },
+    });
+    const mockPatch = vi.fn().mockResolvedValue({
+      data: {
+        id: 'master',
+        summary: 'Weekly',
+        start: { dateTime: '2026-03-01T09:00:00Z' },
+        end:   { dateTime: '2026-03-01T09:30:00Z' },
+      },
+    });
+    const service = new GoogleCalendarService(makeCalendar([], { get: mockGet, patch: mockPatch }));
+
+    await service.deleteEvent('master_20260322T090000Z', 'this_and_following');
+
+    const patchedRecurrence: string[] = mockPatch.mock.calls[0][0].requestBody.recurrence;
+    expect(patchedRecurrence[0]).not.toMatch(/RRULE:;/);
+    expect(patchedRecurrence[0]).toMatch(/^RRULE:/);
+    expect(patchedRecurrence[0]).toMatch(/FREQ=WEEKLY/);
+    expect(patchedRecurrence[0]).toMatch(/UNTIL=20260322T085959Z/);
+  });
+
+  it("scope 'this_and_following' throws when eventId has no instance suffix", async () => {
+    const service = new GoogleCalendarService(makeCalendar([]));
+
+    await expect(service.deleteEvent('masteronly', 'this_and_following')).rejects.toThrow(
+      'this_and_following requires an instance event ID',
+    );
+  });
+
   it("scope 'this_and_following' patches master RRULE with UNTIL before instance start", async () => {
     const mockGet = vi.fn().mockResolvedValue({
       data: {

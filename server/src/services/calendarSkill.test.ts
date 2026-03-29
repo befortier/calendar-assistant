@@ -305,6 +305,28 @@ describe('dispatchTool: delete_event with recurrence_scope', () => {
 });
 
 // ---------------------------------------------------------------------------
+// recurrence_scope validation
+// ---------------------------------------------------------------------------
+
+describe('dispatchTool: recurrence_scope validation', () => {
+  it('throws when update_event has an invalid recurrence_scope value', async () => {
+    const service = makeService();
+
+    await expect(
+      dispatchTool('update_event', { id: 'evt-123', recurrence_scope: 'allEvents' }, service),
+    ).rejects.toThrow("invalid recurrence_scope 'allEvents'");
+  });
+
+  it('throws when delete_event has an invalid recurrence_scope value', async () => {
+    const service = makeService();
+
+    await expect(
+      dispatchTool('delete_event', { id: 'evt-abc', recurrence_scope: 'series' }, service),
+    ).rejects.toThrow("invalid recurrence_scope 'series'");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // unknown tool
 // ---------------------------------------------------------------------------
 

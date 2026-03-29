@@ -19,6 +19,15 @@ function asStringArray(v: unknown, field: string): string[] {
   return v as string[];
 }
 
+const VALID_RECURRENCE_SCOPES: RecurrenceScope[] = ['this', 'this_and_following', 'all'];
+
+function asRecurrenceScope(v: unknown): RecurrenceScope {
+  const raw = asString(v, 'recurrence_scope');
+  if (!(VALID_RECURRENCE_SCOPES as string[]).includes(raw))
+    throw new Error(`dispatchTool: invalid recurrence_scope '${raw}'`);
+  return raw as RecurrenceScope;
+}
+
 function asReminders(v: unknown, field: string): EventReminder[] {
   if (!Array.isArray(v)) throw new Error(`dispatchTool: expected array for '${field}'`);
   return v.map((r, i) => {
@@ -87,9 +96,7 @@ async function handleUpdateEvent(
   service: GoogleCalendarService,
 ): Promise<string> {
   const id = asString(input.id, 'id');
-  const scope = input.recurrence_scope != null
-    ? asString(input.recurrence_scope, 'recurrence_scope') as RecurrenceScope
-    : undefined;
+  const scope = input.recurrence_scope != null ? asRecurrenceScope(input.recurrence_scope) : undefined;
   const updates: UpdateEventInput = {};
   if (input.title != null) updates.title = asString(input.title, 'title');
   if (input.start != null) updates.start = asString(input.start, 'start');
@@ -108,9 +115,7 @@ async function handleDeleteEvent(
   service: GoogleCalendarService,
 ): Promise<string> {
   const id = asString(input.id, 'id');
-  const scope = input.recurrence_scope != null
-    ? asString(input.recurrence_scope, 'recurrence_scope') as RecurrenceScope
-    : undefined;
+  const scope = input.recurrence_scope != null ? asRecurrenceScope(input.recurrence_scope) : undefined;
   await service.deleteEvent(id, scope);
   return JSON.stringify({ success: true });
 }
