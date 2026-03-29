@@ -14,7 +14,7 @@ export interface ChatRouterDeps {
   users: IUserRepository;
   preferences: IPreferencesRepository;
   provider: LLMProvider;
-  calendarServiceFactory: (accessToken: string, refreshToken: string) => GoogleCalendarService;
+  calendarServiceFactory: (accessToken: string, refreshToken: string, calendarId?: string) => GoogleCalendarService;
 }
 
 const MessageSchema = z.object({
@@ -28,6 +28,8 @@ const ChatRequestSchema = z.object({
   timezone: z.string().default('UTC').refine((tz) => {
     try { Intl.DateTimeFormat(undefined, { timeZone: tz }); return true; } catch { return false; }
   }, { message: 'Invalid IANA timezone' }),
+  calendarId: z.string().min(1).default('primary'),
+  calendarName: z.string().optional(),
 });
 
 function makeDispatchTool(
@@ -73,7 +75,7 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
       return;
     }
 
-    const calendarService = deps.calendarServiceFactory(user.accessToken, user.refreshToken);
+    const calendarService = deps.calendarServiceFactory(user.accessToken, user.refreshToken, parsed.data.calendarId);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -100,6 +102,8 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
               email: user.email,
               timezone: parsed.data.timezone,
               preferences: deps.preferences.getPreferences(userId),
+              calendarId: parsed.data.calendarId,
+              calendarName: parsed.data.calendarName,
             }),
         },
         (event) => { if (!closed) res.write(formatSSE(event)); },

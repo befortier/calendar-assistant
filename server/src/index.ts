@@ -7,6 +7,7 @@ import { jwtMiddleware } from './auth/jwt';
 import { createAuthRouter } from './routes/auth';
 import { createChatRouter } from './routes/chat';
 import { createPreferencesRouter } from './routes/preferences';
+import { createCalendarsRouter } from './routes/calendars';
 import { GoogleTokenExchanger, realGoogleAuthFactory } from './auth/google';
 import { ClaudeAdapter } from './services/providers/claude/claudeAdapter';
 import { createGoogleCalendarService } from './services/googleCalendar';
@@ -38,10 +39,20 @@ app.get('/health', (_req, res) => {
 const auth = jwtMiddleware(config.JWT_SECRET);
 
 app.use('/calendar', auth);
+app.use('/calendars', auth);
 app.use('/chat', auth);
 app.use('/preferences', auth);
 
 const provider = new ClaudeAdapter(new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }), config.ANTHROPIC_MODEL);
+
+app.use(
+  '/calendars',
+  createCalendarsRouter({
+    users: deps.client,
+    calendarServiceFactory: (accessToken, refreshToken) =>
+      createGoogleCalendarService(accessToken, refreshToken, config),
+  }),
+);
 
 app.use(
   '/chat',
@@ -49,8 +60,8 @@ app.use(
     users: deps.client,
     preferences: deps.preferences,
     provider,
-    calendarServiceFactory: (accessToken, refreshToken) =>
-      createGoogleCalendarService(accessToken, refreshToken, config),
+    calendarServiceFactory: (accessToken, refreshToken, calendarId) =>
+      createGoogleCalendarService(accessToken, refreshToken, config, undefined, calendarId),
   }),
 );
 

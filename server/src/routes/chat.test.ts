@@ -65,7 +65,7 @@ describe('POST /chat', () => {
       .post('/chat')
       .send({ messages: [{ role: 'user', content: 'Hi' }], timezone: 'UTC' });
 
-    expect(deps.calendarServiceFactory).toHaveBeenCalledWith('access-tok', 'refresh-tok');
+    expect(deps.calendarServiceFactory).toHaveBeenCalledWith('access-tok', 'refresh-tok', 'primary');
   });
 
   it('returns 400 when messages is missing', async () => {
