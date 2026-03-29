@@ -8,6 +8,13 @@ export interface HttpTransport {
   delete<T>(url: string, config?: AxiosRequestConfig): Promise<{ data: T }>;
 }
 
+export interface CalendarInfo {
+  id: string;
+  summary: string;
+  backgroundColor?: string;
+  primary: boolean;
+}
+
 /** An interceptor that can inspect/modify the request config before it is sent. */
 export type RequestInterceptor = (config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig;
 
@@ -67,6 +74,10 @@ export class ApiClient {
   async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
     const res = await this.http.delete<T>(url, config);
     return res.data;
+  }
+
+  async getCalendars(): Promise<{ calendars: CalendarInfo[] }> {
+    return this.get<{ calendars: CalendarInfo[] }>('/calendars');
   }
 
   async getPreferences(): Promise<{ content: string }> {

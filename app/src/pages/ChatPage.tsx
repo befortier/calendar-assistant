@@ -3,22 +3,31 @@ import ChatBubble from '../components/ChatBubble';
 import ChatInput from '../components/ChatInput';
 import EventCard from '../components/EventCard';
 import BatchProposalCard from '../components/BatchProposalCard';
+import CalendarPicker from '../components/CalendarPicker';
 import { useChat } from '../hooks/useChat';
 import { useAuthStore } from '../stores/auth';
+import { useCalendarStore } from '../stores/calendar';
 
 export default function ChatPage() {
   const { items, loading, status, error, bottomRef, sendMessage, respondToProposal, removeFromBatch, respondToBatch } = useChat();
   const logout = useAuthStore((s) => s.logout);
+  const clearCalendar = useCalendarStore((s) => s.clearCalendar);
+
+  const handleLogout = () => {
+    clearCalendar();
+    logout();
+  };
 
   return (
     <div className="flex h-screen flex-col bg-gray-50">
       <header className="flex items-center justify-between border-b bg-white px-4 py-3">
         <h1 className="text-lg font-semibold text-gray-900">Calendar Assistant</h1>
         <div className="flex items-center gap-4">
+          <CalendarPicker />
           <Link to="/preferences" className="text-sm text-gray-500 transition hover:text-gray-700">
             Preferences
           </Link>
-          <button type="button" onClick={logout} className="text-sm text-gray-500 transition hover:text-gray-700">
+          <button type="button" onClick={handleLogout} className="text-sm text-gray-500 transition hover:text-gray-700">
             Sign out
           </button>
         </div>

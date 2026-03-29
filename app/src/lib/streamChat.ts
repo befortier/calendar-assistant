@@ -7,6 +7,8 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 export async function streamChat(
   messages: { role: string; content: string; metadata?: ProposalMetadata | BatchProposalMetadata }[],
   timezone: string,
+  calendarId: string,
+  calendarName: string | undefined,
   onEvent: (event: SSEEvent) => void,
 ): Promise<void> {
   const token = useAuthStore.getState().token;
@@ -21,7 +23,7 @@ export async function streamChat(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ messages, timezone }),
+    body: JSON.stringify({ messages, timezone, calendarId, calendarName }),
   });
 
   if (response.status === 401) {

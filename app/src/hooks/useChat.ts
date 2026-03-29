@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, type Dispatch } from 'react';
 import { streamChat } from '../lib/streamChat';
 import { extractMessages, resolveProposal, buildConfirmText, buildBatchConfirmText, buildBatchMetadata } from '../lib/chatHelpers';
+import { useCalendarStore } from '../stores/calendar';
 import type { SSEEvent } from '../lib/sse';
 import type { ChatItem, ProposalItem, BatchProposalItem } from '../types/chat';
 
@@ -294,9 +295,12 @@ export function useChat() {
     async (allItems: ChatState['items']) => {
       dispatch({ type: 'STREAM_START', id: crypto.randomUUID() });
       try {
+        const { calendarId, calendarName } = useCalendarStore.getState();
         await streamChat(
           extractMessages(allItems),
           Intl.DateTimeFormat().resolvedOptions().timeZone,
+          calendarId,
+          calendarName ?? undefined,
           handleEvent,
         );
       } catch {

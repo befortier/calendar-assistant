@@ -14,6 +14,11 @@ vi.mock('../lib/streamChat', () => ({
   streamChat: (...args: unknown[]) => mockStreamChat(...args),
 }));
 
+vi.mock('../lib/apiInstance', () => ({
+  authenticatedApi: { getCalendars: vi.fn().mockResolvedValue({ calendars: [] }) },
+  unauthenticatedApi: {},
+}));
+
 const mockLogout = vi.fn();
 vi.mock('../stores/auth', () => ({
   useAuthStore: (selector: (s: { logout: typeof mockLogout }) => unknown) =>
@@ -37,7 +42,7 @@ describe('ChatPage', () => {
   });
 
   it('sends message and shows user bubble', async () => {
-    mockStreamChat.mockImplementation(async (_msgs: unknown, _tz: unknown, onEvent: (e: unknown) => void) => {
+    mockStreamChat.mockImplementation(async (_msgs: unknown, _tz: unknown, _calId: unknown, _calName: unknown, onEvent: (e: unknown) => void) => {
       onEvent({ event: 'done', data: {} });
     });
     renderPage();
@@ -49,7 +54,7 @@ describe('ChatPage', () => {
   });
 
   it('streams text deltas into assistant message', async () => {
-    mockStreamChat.mockImplementation(async (_msgs: unknown, _tz: unknown, onEvent: (e: unknown) => void) => {
+    mockStreamChat.mockImplementation(async (_msgs: unknown, _tz: unknown, _calId: unknown, _calName: unknown, onEvent: (e: unknown) => void) => {
       onEvent({ event: 'delta', data: { text: 'You have ' } });
       onEvent({ event: 'delta', data: { text: '3 meetings.' } });
       onEvent({ event: 'done', data: {} });
@@ -65,7 +70,7 @@ describe('ChatPage', () => {
   });
 
   it('shows tool call status', async () => {
-    mockStreamChat.mockImplementation(async (_msgs: unknown, _tz: unknown, onEvent: (e: unknown) => void) => {
+    mockStreamChat.mockImplementation(async (_msgs: unknown, _tz: unknown, _calId: unknown, _calName: unknown, onEvent: (e: unknown) => void) => {
       onEvent({ event: 'tool_call', data: { tool: 'get_events' } });
       // Don't emit done — status should be visible
     });
@@ -80,7 +85,7 @@ describe('ChatPage', () => {
   });
 
   it('renders event proposal card', async () => {
-    mockStreamChat.mockImplementation(async (_msgs: unknown, _tz: unknown, onEvent: (e: unknown) => void) => {
+    mockStreamChat.mockImplementation(async (_msgs: unknown, _tz: unknown, _calId: unknown, _calName: unknown, onEvent: (e: unknown) => void) => {
       onEvent({
         event: 'event_proposal',
         data: {
