@@ -1,4 +1,5 @@
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ChatBubbleProps {
   role: 'user' | 'assistant';
@@ -19,7 +20,7 @@ export default function ChatBubble({ role, content }: ChatBubbleProps) {
       >
         {isUser ? content : (
           <div className="prose prose-sm prose-gray max-w-none">
-            <Markdown>{content}</Markdown>
+            <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
           </div>
         )}
       </div>
