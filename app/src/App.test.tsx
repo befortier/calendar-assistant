@@ -9,7 +9,7 @@ vi.mock('@react-oauth/google', () => ({
 
 // Mock authenticated API client used by ChatPage
 vi.mock('./lib/apiInstance', () => ({
-  authenticatedApi: { post: vi.fn() },
+  authenticatedApi: { post: vi.fn(), getCalendars: vi.fn().mockResolvedValue({ calendars: [] }) },
   unauthenticatedApi: { post: vi.fn() },
 }));
 
