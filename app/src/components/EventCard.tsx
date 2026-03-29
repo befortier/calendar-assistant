@@ -46,13 +46,13 @@ export default function EventCard({ action, event, status, onAccept, onDecline }
       )}
 
       {event.attendees && event.attendees.length > 0 && (
-        <p className="mt-1 text-xs text-gray-600">
+        <p className="mt-1 text-xs text-gray-600" aria-label="Attendees">
           {event.attendees.map(a => a.email).join(', ')}
         </p>
       )}
 
       {event.location && (
-        <p className="mt-1 text-xs text-gray-600">{event.location}</p>
+        <p className="mt-1 text-xs text-gray-600" aria-label="Location">{event.location}</p>
       )}
 
       {status === 'pending' && (

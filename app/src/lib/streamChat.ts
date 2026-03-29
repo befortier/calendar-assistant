@@ -1,10 +1,11 @@
 import { parseSSEChunk, type SSEEvent } from './sse';
 import { useAuthStore } from '../stores/auth';
+import type { ProposalMetadata } from '../hooks/useChat';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
 export async function streamChat(
-  messages: { role: string; content: string; metadata?: Record<string, unknown> }[],
+  messages: { role: string; content: string; metadata?: ProposalMetadata }[],
   timezone: string,
   onEvent: (event: SSEEvent) => void,
 ): Promise<void> {
