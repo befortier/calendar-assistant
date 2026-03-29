@@ -28,8 +28,8 @@ const ChatRequestSchema = z.object({
   timezone: z.string().default('UTC').refine((tz) => {
     try { Intl.DateTimeFormat(undefined, { timeZone: tz }); return true; } catch { return false; }
   }, { message: 'Invalid IANA timezone' }),
-  calendarId: z.string().min(1).default('primary'),
-  calendarName: z.string().optional(),
+  calendarId: z.string().min(1).max(250).regex(/^[^\r\n]*$/).default('primary'),
+  calendarName: z.string().max(100).regex(/^[^\r\n]*$/).optional(),
 });
 
 function makeDispatchTool(
