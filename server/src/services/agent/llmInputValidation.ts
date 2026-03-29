@@ -7,7 +7,7 @@ const VALID_RECURRENCE_SCOPES: RecurrenceScope[] = ['this', 'this_and_following'
  * Throws a descriptive error referencing `field` if the assertion fails.
  */
 export function asString(v: unknown, field: string): string {
-  if (typeof v !== 'string') throw new Error(`dispatchTool: expected string for '${field}', got ${typeof v}`);
+  if (typeof v !== 'string') throw new Error(`expected string for '${field}', got ${typeof v}`);
   return v;
 }
 
@@ -18,7 +18,7 @@ export function asString(v: unknown, field: string): string {
 export function asDate(v: unknown, field: string): Date {
   const s = asString(v, field);
   const d = new Date(s);
-  if (isNaN(d.getTime())) throw new Error(`dispatchTool: invalid ISO 8601 date for '${field}'`);
+  if (isNaN(d.getTime())) throw new Error(`invalid ISO 8601 date for '${field}'`);
   return d;
 }
 
@@ -28,7 +28,7 @@ export function asDate(v: unknown, field: string): Date {
  */
 export function asStringArray(v: unknown, field: string): string[] {
   if (!Array.isArray(v) || !v.every((x) => typeof x === 'string'))
-    throw new Error(`dispatchTool: expected string[] for '${field}'`);
+    throw new Error(`expected string[] for '${field}'`);
   return v;
 }
 
@@ -39,7 +39,7 @@ export function asStringArray(v: unknown, field: string): string[] {
 export function asRecurrenceScope(v: unknown): RecurrenceScope {
   const raw = asString(v, 'recurrence_scope');
   if (!(VALID_RECURRENCE_SCOPES as string[]).includes(raw))
-    throw new Error(`dispatchTool: invalid recurrence_scope '${raw}'`);
+    throw new Error(`invalid recurrence_scope '${raw}'`);
   return raw as RecurrenceScope;
 }
 
@@ -48,16 +48,16 @@ export function asRecurrenceScope(v: unknown): RecurrenceScope {
  * Throws if the array shape is wrong or any element is malformed.
  */
 export function asReminders(v: unknown, field: string): EventReminder[] {
-  if (!Array.isArray(v)) throw new Error(`dispatchTool: expected array for '${field}'`);
+  if (!Array.isArray(v)) throw new Error(`expected array for '${field}'`);
   return v.map((r, i) => {
     if (typeof r !== 'object' || r === null)
-      throw new Error(`dispatchTool: expected object at ${field}[${i}]`);
+      throw new Error(`expected object at ${field}[${i}]`);
     const obj = r as Record<string, unknown>;
     if (typeof obj.minutes !== 'number')
-      throw new Error(`dispatchTool: expected number for '${field}[${i}].minutes'`);
-    return {
-      method: asString(obj.method, `${field}[${i}].method`) as 'email' | 'popup',
-      minutes: obj.minutes,
-    };
+      throw new Error(`expected number for '${field}[${i}].minutes'`);
+    const method = asString(obj.method, `${field}[${i}].method`);
+    if (method !== 'email' && method !== 'popup')
+      throw new Error(`expected 'email' | 'popup' for '${field}[${i}].method', got '${method}'`);
+    return { method, minutes: obj.minutes };
   });
 }

@@ -152,4 +152,10 @@ describe('asReminders', () => {
       "expected number for 'reminders[0].minutes'",
     );
   });
+
+  it('throws when method is not email or popup', () => {
+    expect(() => asReminders([{ method: 'sms', minutes: 15 }], 'reminders')).toThrow(
+      "expected 'email' | 'popup' for 'reminders[0].method', got 'sms'",
+    );
+  });
 });

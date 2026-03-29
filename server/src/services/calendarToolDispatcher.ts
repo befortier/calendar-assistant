@@ -99,7 +99,7 @@ async function handleUpdateEvent(
   const id = asString(input.id, 'id');
   const scope = input.recurrence_scope != null ? asRecurrenceScope(input.recurrence_scope) : undefined;
   if (scope === 'this_and_following')
-    throw new Error("dispatchTool: this_and_following is not supported for update_event");
+    throw new Error("this_and_following is not supported for update_event");
   const updates: UpdateEventInput = {};
   if (input.title != null) updates.title = asString(input.title, 'title');
   if (input.start != null) updates.start = asString(input.start, 'start');
