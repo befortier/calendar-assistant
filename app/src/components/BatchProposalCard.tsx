@@ -32,6 +32,7 @@ export default function BatchProposalCard({ item, onAccept, onDecline, onRemoveE
   const config = ACTION_CONFIG[primaryAction];
 
   const remainingCount = item.entries.filter((e) => !item.removedIds.includes(e.event.id)).length;
+  const listId = `batch-event-list-${item.id}`;
 
   return (
     <div className={`rounded-lg border-l-4 p-4 ${config.accent}`} role="article" aria-label={`${config.label} — ${remainingCount} events`}>
@@ -44,7 +45,7 @@ export default function BatchProposalCard({ item, onAccept, onDecline, onRemoveE
           onClick={() => setCollapsed((c) => !c)}
           className="text-xs text-gray-400 hover:text-gray-600"
           aria-expanded={!collapsed}
-          aria-controls="batch-event-list"
+          aria-controls={listId}
           aria-label={collapsed ? 'Show events' : 'Hide events'}
         >
           {collapsed ? 'Show' : 'Hide'}
@@ -52,7 +53,7 @@ export default function BatchProposalCard({ item, onAccept, onDecline, onRemoveE
       </div>
 
       {!collapsed && (
-        <ul id="batch-event-list" className="mt-2 space-y-1.5" aria-label="Events in batch">
+        <ul id={listId} className="mt-2 space-y-1.5" aria-label="Events in batch">
           {item.entries.map(({ id, action, event }) => {
             const removed = item.removedIds.includes(event.id);
             const rowConfig = ACTION_CONFIG[action];
