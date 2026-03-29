@@ -20,8 +20,8 @@ export function usePreferences(): UsePreferencesResult {
   const [status, setStatus] = useState<PreferencesStatus>('loading');
   const [error, setError] = useState('');
 
-  // Does the fetch only — no synchronous setState so it's safe to call from an effect.
-  // Initial status is already 'loading' from useState, so no reset needed on mount.
+  // Internal fetch — does NOT reset status/error before fetching.
+  // Safe to call from an effect (no synchronous setState). To reset UI state first, call retry().
   const load = useCallback(() => {
     authenticatedApi.getPreferences()
       .then((res) => {
