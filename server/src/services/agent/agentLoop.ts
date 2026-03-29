@@ -33,50 +33,71 @@ export async function runAgentLoop(
       (text) => emit({ event: SSEEventType.Delta, data: { text } }),
     );
 
-    if (result.stopReason === StopReason.EndTurn) {
-      // Flush any accumulated proposals before finishing
-      if (pendingProposals.length > 0) {
-        const singles = pendingProposals
-          .filter((tc) => tc.name === 'propose_event')
-          .map(sanitizeProposal);
-        const batches = pendingProposals.filter((tc) => tc.name === 'propose_batched_events');
-        const deduped = deduplicateProposals(singles);
-        emitProposals([...deduped, ...batches], emit);
+    switch (result.stopReason) {
+      case StopReason.EndTurn: {
+        // Proposals are accumulated throughout the loop rather than emitted immediately,
+        // so the user sees the complete final set once the model has fully settled on its answer.
+        if (pendingProposals.length > 0) {
+          const singles = pendingProposals
+            .filter((tc) => tc.name === 'propose_event')
+            .map(sanitizeProposal);
+          const batches = pendingProposals.filter((tc) => tc.name === 'propose_batched_events');
+          const deduped = deduplicateProposals(singles);
+          emitProposals([...deduped, ...batches], emit);
+        }
+        emit({ event: SSEEventType.Done, data: {} });
+        return;
       }
-      emit({ event: SSEEventType.Done, data: {} });
-      return;
-    }
 
-    if (result.toolCalls.length === 0) {
-      messages.push({ role: 'assistant', text: result.text, toolCalls: [] });
-      messages.push({ role: 'user', content: 'Please continue.' });
-      continue;
-    }
+      case StopReason.MaxTokens:
+        // Model hit the token budget mid-response. Nudge it to resume.
+        handleIncompleteResponse(messages, result.text);
+        continue;
 
-    const proposals = result.toolCalls.filter((tc) => isProposalTool(tc.name));
-    const otherTools = result.toolCalls.filter((tc) => !isProposalTool(tc.name));
+      case StopReason.ToolUse: {
+        // API quirk: the model can signal tool_use but return no tool call blocks.
+        // Treat it the same as MaxTokens — nudge and retry.
+        if (result.toolCalls.length === 0) {
+          handleIncompleteResponse(messages, result.text);
+          continue;
+        }
 
-    if (proposals.length > 0) {
-      // Accumulate proposals and send tool results so the model can continue
-      pendingProposals.push(...proposals);
-      messages.push({ role: 'assistant', text: result.text, toolCalls: result.toolCalls });
-      messages.push(...proposals.map((tc) => ({
-        role: 'tool_result' as const,
-        toolCallId: tc.id,
-        content: 'Proposal shown to user.',
-      })));
+        const proposals = result.toolCalls.filter((tc) => isProposalTool(tc.name));
+        const otherTools = result.toolCalls.filter((tc) => !isProposalTool(tc.name));
 
-      // If there were also non-proposal tools in the same response, dispatch them
-      if (otherTools.length > 0) {
-        const toolResults = await dispatchAll(otherTools, deps.dispatchTool, emit);
+        if (proposals.length > 0) {
+          // Accumulate proposals without dispatching — proposal tools are display-only and
+          // never sent to Google. Feed back a synthetic result so the model can continue.
+          pendingProposals.push(...proposals);
+          messages.push({ role: 'assistant', text: result.text, toolCalls: result.toolCalls });
+          messages.push(...proposals.map((tc) => ({
+            role: 'tool_result' as const,
+            toolCallId: tc.id,
+            content: 'Proposal shown to user.',
+          })));
+
+          if (otherTools.length > 0) {
+            const toolResults = await dispatchAll(otherTools, deps.dispatchTool, emit);
+            messages.push(...toolResults);
+          }
+          continue;
+        }
+
+        const toolResults = await dispatchAll(result.toolCalls, deps.dispatchTool, emit);
+        messages.push({ role: 'assistant', text: result.text, toolCalls: result.toolCalls });
         messages.push(...toolResults);
+        continue;
       }
-      continue;
-    }
 
-    const toolResults = await dispatchAll(result.toolCalls, deps.dispatchTool, emit);
-    messages.push({ role: 'assistant', text: result.text, toolCalls: result.toolCalls });
-    messages.push(...toolResults);
+      default: {
+        // Should never happen — StopReason covers all values the API currently returns.
+        // If a new stop reason is introduced, fail loudly rather than spinning the loop.
+        console.error(`[agentLoop] Unrecognised stop reason: ${result.stopReason as string}`);
+        emit({ event: SSEEventType.Error, data: { message: 'Unexpected response from AI provider.' } });
+        emit({ event: SSEEventType.Done, data: {} });
+        return;
+      }
+    }
   }
 
   emit({
@@ -84,6 +105,12 @@ export async function runAgentLoop(
     data: { message: 'Too many tool calls — please try a simpler question.' },
   });
   emit({ event: SSEEventType.Done, data: {} });
+}
+
+/** Appends a partial assistant turn and a "Please continue." nudge so the loop retries. */
+function handleIncompleteResponse(messages: ChatMessage[], text: string): void {
+  messages.push({ role: 'assistant', text, toolCalls: [] });
+  messages.push({ role: 'user', content: 'Please continue.' });
 }
 
 function toCalendarEvent(input: Record<string, unknown>): CalendarEvent {
@@ -132,7 +159,6 @@ function emitProposals(toolCalls: ToolCall[], emit: SSEEmitter): void {
   }
 }
 
-/** Cleans up a propose_event tool call, extracting fields even if the model mangled the JSON. */
 /** Removes duplicate proposals (same start + end time). Keeps first occurrence. */
 function deduplicateProposals(proposals: ToolCall[]): ToolCall[] {
   const seen = new Set<string>();
@@ -144,6 +170,7 @@ function deduplicateProposals(proposals: ToolCall[]): ToolCall[] {
   });
 }
 
+/** Cleans up a propose_event tool call, normalizing fields the model sometimes mangles. */
 function sanitizeProposal(tc: ToolCall): ToolCall {
   const input = { ...tc.input };
 
