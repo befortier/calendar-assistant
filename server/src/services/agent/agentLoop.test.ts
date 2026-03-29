@@ -128,18 +128,18 @@ describe('runAgentLoop', () => {
     expect(provider.stream).toHaveBeenCalledTimes(2);
   });
 
-  // d. Multiple proposals across iterations get group UUID
-  it('assigns same group UUID to multiple proposals', async () => {
+  // d. Multiple same-action proposals are emitted as a single batch_proposal
+  it('batches multiple same-action proposals into a single batch_proposal event', async () => {
     const proposals = [
       {
         id: 'tc-p1',
         name: 'propose_event',
-        input: { title: 'Event 1', start: 'a', end: 'b' },
+        input: { action: 'create', title: 'Event 1', start: 'a', end: 'b' },
       },
       {
         id: 'tc-p2',
         name: 'propose_event',
-        input: { title: 'Event 2', start: 'c', end: 'd' },
+        input: { action: 'create', title: 'Event 2', start: 'c', end: 'd' },
       },
     ];
     const provider = mockProvider([
@@ -155,25 +155,26 @@ describe('runAgentLoop', () => {
       collectEvents(events),
     );
 
-    const proposalEvents = events.filter((e) => e.event === SSEEventType.EventProposal);
-    expect(proposalEvents).toHaveLength(2);
-    const group1 = (proposalEvents[0].data as { group?: string }).group;
-    const group2 = (proposalEvents[1].data as { group?: string }).group;
-    expect(group1).toBeDefined();
-    expect(group1).toBe(group2);
+    const batchEvents = events.filter((e) => e.event === SSEEventType.BatchProposal);
+    expect(batchEvents).toHaveLength(1);
+    const batchData = batchEvents[0].data as { batchId: string; entries: unknown[] };
+    expect(batchData.batchId).toBeDefined();
+    expect(batchData.entries).toHaveLength(2);
+    // No individual event_proposal events
+    expect(events.filter((e) => e.event === SSEEventType.EventProposal)).toHaveLength(0);
   });
 
-  // d2. Proposals sent one-per-iteration are accumulated
-  it('accumulates proposals across multiple iterations', async () => {
+  // d2. Proposals sent one-per-iteration are accumulated into a single batch_proposal
+  it('accumulates proposals across multiple iterations into a batch_proposal', async () => {
     const provider = mockProvider([
       { stopReason: StopReason.ToolUse, text: 'Option 1:', toolCalls: [
-        { id: 'p1', name: 'propose_event', input: { title: 'Sync', start: '2026-03-30T09:00:00Z', end: '2026-03-30T09:30:00Z' } },
+        { id: 'p1', name: 'propose_event', input: { action: 'create', title: 'Sync', start: '2026-03-30T09:00:00Z', end: '2026-03-30T09:30:00Z' } },
       ]},
       { stopReason: StopReason.ToolUse, text: 'Option 2:', toolCalls: [
-        { id: 'p2', name: 'propose_event', input: { title: 'Sync', start: '2026-03-30T10:00:00Z', end: '2026-03-30T10:30:00Z' } },
+        { id: 'p2', name: 'propose_event', input: { action: 'create', title: 'Sync', start: '2026-03-30T10:00:00Z', end: '2026-03-30T10:30:00Z' } },
       ]},
       { stopReason: StopReason.ToolUse, text: 'Option 3:', toolCalls: [
-        { id: 'p3', name: 'propose_event', input: { title: 'Sync', start: '2026-03-30T11:00:00Z', end: '2026-03-30T11:30:00Z' } },
+        { id: 'p3', name: 'propose_event', input: { action: 'create', title: 'Sync', start: '2026-03-30T11:00:00Z', end: '2026-03-30T11:30:00Z' } },
       ]},
       { stopReason: StopReason.EndTurn, text: 'Pick one!', toolCalls: [] },
     ]);
@@ -187,8 +188,10 @@ describe('runAgentLoop', () => {
       collectEvents(events),
     );
 
-    const proposalEvents = events.filter((e) => e.event === SSEEventType.EventProposal);
-    expect(proposalEvents).toHaveLength(3);
+    const batchEvents = events.filter((e) => e.event === SSEEventType.BatchProposal);
+    expect(batchEvents).toHaveLength(1);
+    const batchData = batchEvents[0].data as { entries: unknown[] };
+    expect(batchData.entries).toHaveLength(3);
     expect(dispatchTool).not.toHaveBeenCalled();
     expect(provider.stream).toHaveBeenCalledTimes(4);
   });

@@ -1,11 +1,12 @@
 import ChatBubble from '../components/ChatBubble';
 import ChatInput from '../components/ChatInput';
 import EventCard from '../components/EventCard';
+import BatchProposalCard from '../components/BatchProposalCard';
 import { useChat } from '../hooks/useChat';
 import { useAuthStore } from '../stores/auth';
 
 export default function ChatPage() {
-  const { items, loading, status, error, bottomRef, sendMessage, respondToProposal } = useChat();
+  const { items, loading, status, error, bottomRef, sendMessage, respondToProposal, removeFromBatch, respondToBatch } = useChat();
   const logout = useAuthStore((s) => s.logout);
 
   return (
@@ -24,10 +25,22 @@ export default function ChatPage() {
               Ask me anything about your calendar.
             </p>
           )}
-          {items.map((item) =>
-            item.type === 'message' ? (
-              <ChatBubble key={item.id} role={item.role} content={item.content} />
-            ) : (
+          {items.map((item) => {
+            if (item.type === 'message') {
+              return <ChatBubble key={item.id} role={item.role} content={item.content} />;
+            }
+            if (item.type === 'batch_proposal') {
+              return (
+                <BatchProposalCard
+                  key={item.id}
+                  item={item}
+                  onAccept={() => respondToBatch(item.id, true)}
+                  onDecline={() => respondToBatch(item.id, false)}
+                  onRemoveEvent={(eventId) => removeFromBatch(item.id, eventId)}
+                />
+              );
+            }
+            return (
               <EventCard
                 key={item.id}
                 action={item.action}
@@ -36,8 +49,8 @@ export default function ChatPage() {
                 onAccept={() => respondToProposal(item.id, true)}
                 onDecline={() => respondToProposal(item.id, false)}
               />
-            ),
-          )}
+            );
+          })}
           {status && (
             <div className="flex justify-start">
               <div className="rounded-2xl bg-gray-100 px-4 py-2.5 text-sm text-gray-400" role="status">
