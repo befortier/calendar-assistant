@@ -1,40 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { Link, useBeforeUnload } from 'react-router-dom';
-import { authenticatedApi } from '../lib/apiInstance';
+import { usePreferences } from '../hooks/usePreferences';
 
 export default function PreferencesPage() {
-  const [content, setContent] = useState('');
-  const [saved, setSaved] = useState('');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'saving' | 'error'>('loading');
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    authenticatedApi.getPreferences()
-      .then((res) => {
-        setContent(res.content);
-        setSaved(res.content);
-        setStatus('idle');
-      })
-      .catch(() => {
-        setError('Failed to load preferences.');
-        setStatus('error');
-      });
-  }, []);
-
-  async function handleSave() {
-    setStatus('saving');
-    setError('');
-    try {
-      const res = await authenticatedApi.updatePreferences(content);
-      setSaved(res.content);
-      setStatus('idle');
-    } catch {
-      setError('Failed to save preferences.');
-      setStatus('idle');
-    }
-  }
-
-  const isDirty = content !== saved;
+  const { content, setContent, status, error, isDirty, save, retry } = usePreferences();
 
   useBeforeUnload(
     useCallback((e: BeforeUnloadEvent) => {
@@ -53,7 +22,7 @@ export default function PreferencesPage() {
 
       <main className="flex-1 overflow-y-auto px-4 py-6">
         <div className="mx-auto max-w-2xl space-y-4">
-          <p className="text-sm text-gray-500">
+          <p id="preferences-description" className="text-sm text-gray-500">
             Tell the assistant about your scheduling preferences — e.g. "I prefer morning meetings",
             "never book me before 9am", "I work from home on Fridays". The assistant will read these
             automatically and can update them when you share new preferences in chat.
@@ -69,6 +38,7 @@ export default function PreferencesPage() {
               value={content}
               onChange={(e) => setContent(e.target.value)}
               aria-label="User preferences"
+              aria-describedby="preferences-description"
             />
           )}
 
@@ -77,15 +47,25 @@ export default function PreferencesPage() {
           )}
 
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={!isDirty || status === 'saving'}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-            >
-              {status === 'saving' ? 'Saving…' : 'Save'}
-            </button>
-            {!isDirty && status === 'idle' && saved !== '' && (
+            {status === 'error' ? (
+              <button
+                type="button"
+                onClick={retry}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+              >
+                Retry
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={save}
+                disabled={!isDirty || status === 'saving'}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              >
+                {status === 'saving' ? 'Saving…' : 'Save'}
+              </button>
+            )}
+            {!isDirty && status === 'idle' && content !== '' && (
               <span className="text-sm text-gray-400">Saved</span>
             )}
           </div>
