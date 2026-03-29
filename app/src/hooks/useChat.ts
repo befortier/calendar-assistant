@@ -240,6 +240,8 @@ export function useChat() {
   // Stable ref so async callbacks always read the latest items without stale closures.
   // Synced in useLayoutEffect (runs synchronously after render, before paint) so
   // the ref is always current before any browser event or async callback can fire.
+  // No dependency array is intentional — we want this to run after every render,
+  // not just when `items` changes, so the ref is never stale mid-render cycle.
   const itemsRef = useRef(items);
   useLayoutEffect(() => { itemsRef.current = items; });
 
