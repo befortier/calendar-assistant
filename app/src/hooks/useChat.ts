@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, type Dispatch } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, type Dispatch } from 'react';
 import { streamChat } from '../lib/streamChat';
 import { extractMessages, resolveProposal, buildConfirmText, buildBatchConfirmText, buildBatchMetadata } from '../lib/chatHelpers';
 import { useCalendarStore } from '../stores/calendar';
@@ -237,9 +237,11 @@ export function useChat() {
   const [{ items, loading, status, error }, dispatch] = useReducer(chatReducer, initialState);
 
   const bottomRef = useRef<HTMLDivElement>(null);
-  // Stable ref so async callbacks can read current items without stale closures
+  // Stable ref so async callbacks always read the latest items without stale closures.
+  // Synced in useLayoutEffect (runs synchronously after render, before paint) so
+  // the ref is always current before any browser event or async callback can fire.
   const itemsRef = useRef(items);
-  itemsRef.current = items;
+  useLayoutEffect(() => { itemsRef.current = items; });
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

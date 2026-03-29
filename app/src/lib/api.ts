@@ -35,7 +35,7 @@ export function createAxiosTransport(
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         onUnauthorized();
       }
-      return Promise.reject(error);
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
     });
   }
   return instance;

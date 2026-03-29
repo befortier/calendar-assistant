@@ -129,7 +129,7 @@ export class GoogleCalendarService {
     const calendars = res.data.calendars ?? {};
     return Object.fromEntries(
       emails.map((email) => {
-        const entry = calendars[email];
+        const entry = calendars[email] as { busy?: { start?: string; end?: string }[]; errors?: { domain?: string; reason?: string }[] } | undefined;
         const busy = (entry?.busy ?? []).map((b) => ({ start: b.start ?? '', end: b.end ?? '' }));
         const errors = entry?.errors?.map((e) => ({ domain: e.domain ?? '', reason: e.reason ?? '' }));
         if (errors?.length) {
@@ -138,7 +138,7 @@ export class GoogleCalendarService {
         }
         return [email, { accessible: true, status: 'ok' as const, busy }];
       }),
-    );
+    ) as FreeBusyResult;
   }
 
   async createEvent(input: CreateEventInput): Promise<CalendarEvent> {
