@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import type { IUserRepository } from '../db/user-repository';
-import type { GoogleCalendarService } from '../services/googleCalendar';
+import type { CalendarServiceFactory } from '../services/googleCalendar';
 
 export interface CalendarsRouterDeps {
   users: IUserRepository;
-  calendarServiceFactory: (accessToken: string, refreshToken: string) => GoogleCalendarService;
+  calendarServiceFactory: CalendarServiceFactory;
 }
 
 export function createCalendarsRouter(deps: CalendarsRouterDeps): Router {

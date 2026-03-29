@@ -8,13 +8,13 @@ import { buildSystemPrompt } from '../services/agent/systemPrompt';
 import { makeCalendarToolDispatcher } from '../services/tools/calendar/dispatcher';
 import { formatSSE, SSEEventType } from '../services/sse';
 import type { LLMProvider, ChatMessage } from '../services/agent/types';
-import type { GoogleCalendarService } from '../services/googleCalendar';
+import type { CalendarServiceFactory, GoogleCalendarService } from '../services/googleCalendar';
 
 export interface ChatRouterDeps {
   users: IUserRepository;
   preferences: IPreferencesRepository;
   provider: LLMProvider;
-  calendarServiceFactory: (accessToken: string, refreshToken: string, calendarId?: string) => GoogleCalendarService;
+  calendarServiceFactory: CalendarServiceFactory;
 }
 
 const MessageSchema = z.object({
