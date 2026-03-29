@@ -20,6 +20,10 @@ function makeDeps(overrides?: Partial<ChatRouterDeps>): ChatRouterDeps {
       upsertUser: vi.fn(),
       getUserById: vi.fn().mockReturnValue(FAKE_USER),
     },
+    preferences: {
+      getPreferences: vi.fn().mockReturnValue(''),
+      setPreferences: vi.fn(),
+    },
     provider: {
       stream: vi.fn().mockResolvedValue({ stopReason: 'end_turn', text: 'Hello', toolCalls: [] }),
     } as unknown as LLMProvider,

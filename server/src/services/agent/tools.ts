@@ -121,4 +121,15 @@ export const calendarTools: ToolDefinition[] = [
       required: ['id'],
     },
   },
+  {
+    name: 'update_preferences',
+    description: `Saves the user's preferences for future reference. Call this when the user states a preference, personal detail, or standing constraint — e.g. "I prefer morning meetings", "my office is in SF", "I have lunch blocked noon–1pm", "never schedule me before 9am". Write the full updated preferences document (replaces the previous version). Keep it as freeform markdown notes.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        content: { type: 'string', description: 'The full updated preferences document (markdown).' },
+      },
+      required: ['content'],
+    },
+  },
 ];

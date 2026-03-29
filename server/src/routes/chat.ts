@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { IUserRepository } from '../db/user-repository';
+import type { IPreferencesRepository } from '../db/preferences-repository';
 import type { GoogleCalendarService } from '../services/googleCalendar';
 import { runAgentLoop } from '../services/agent/agentLoop';
 import { calendarTools } from '../services/agent/tools';
@@ -11,6 +12,7 @@ import type { LLMProvider, ChatMessage } from '../services/agent/types';
 
 export interface ChatRouterDeps {
   users: IUserRepository;
+  preferences: IPreferencesRepository;
   provider: LLMProvider;
   calendarServiceFactory: (accessToken: string, refreshToken: string) => GoogleCalendarService;
 }
@@ -27,6 +29,22 @@ const ChatRequestSchema = z.object({
     try { Intl.DateTimeFormat(undefined, { timeZone: tz }); return true; } catch { return false; }
   }, { message: 'Invalid IANA timezone' }),
 });
+
+function makeDispatchTool(
+  preferencesRepo: IPreferencesRepository,
+  userId: string,
+  calendarService: GoogleCalendarService,
+  timezone: string,
+) {
+  return (name: string, input: Record<string, unknown>): Promise<string> => {
+    if (name === 'update_preferences') {
+      const content = typeof input.content === 'string' ? input.content : '';
+      preferencesRepo.setPreferences(userId, content);
+      return Promise.resolve(JSON.stringify({ saved: true }));
+    }
+    return dispatchTool(name, input, calendarService, timezone);
+  };
+}
 
 export function createChatRouter(deps: ChatRouterDeps): Router {
   const router = Router();
@@ -55,10 +73,7 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
       return;
     }
 
-    const calendarService = deps.calendarServiceFactory(
-      user.accessToken,
-      user.refreshToken,
-    );
+    const calendarService = deps.calendarServiceFactory(user.accessToken, user.refreshToken);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -66,9 +81,7 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
     res.flushHeaders();
 
     let closed = false;
-    res.on('close', () => {
-      closed = true;
-    });
+    res.on('close', () => { closed = true; });
 
     try {
       const chatMessages: ChatMessage[] = parsed.data.messages.map((m): ChatMessage =>
@@ -81,21 +94,19 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
         {
           provider: deps.provider,
           tools: calendarTools,
-          dispatchTool: (name, input) => dispatchTool(name, input, calendarService, parsed.data.timezone),
+          dispatchTool: makeDispatchTool(deps.preferences, userId, calendarService, parsed.data.timezone),
           buildSystemPrompt: () =>
-            buildSystemPrompt({ email: user.email, timezone: parsed.data.timezone }),
+            buildSystemPrompt({
+              email: user.email,
+              timezone: parsed.data.timezone,
+              preferences: deps.preferences.getPreferences(userId),
+            }),
         },
-        (event) => {
-          if (!closed) res.write(formatSSE(event));
-        },
+        (event) => { if (!closed) res.write(formatSSE(event)); },
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      if (!closed) {
-        res.write(
-          formatSSE({ event: SSEEventType.Error, data: { message } }),
-        );
-      }
+      if (!closed) res.write(formatSSE({ event: SSEEventType.Error, data: { message } }));
     } finally {
       res.end();
     }

@@ -6,6 +6,7 @@ import { Dependencies } from './dependencies';
 import { jwtMiddleware } from './auth/jwt';
 import { createAuthRouter } from './routes/auth';
 import { createChatRouter } from './routes/chat';
+import { createPreferencesRouter } from './routes/preferences';
 import { GoogleTokenExchanger, realGoogleAuthFactory } from './auth/google';
 import { ClaudeAdapter } from './services/providers/claude/claudeAdapter';
 import { createGoogleCalendarService } from './services/googleCalendar';
@@ -38,7 +39,7 @@ const auth = jwtMiddleware(config.JWT_SECRET);
 
 app.use('/calendar', auth);
 app.use('/chat', auth);
-app.use('/skills', auth);
+app.use('/preferences', auth);
 
 const provider = new ClaudeAdapter(new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }), config.ANTHROPIC_MODEL);
 
@@ -46,11 +47,14 @@ app.use(
   '/chat',
   createChatRouter({
     users: deps.client,
+    preferences: deps.preferences,
     provider,
     calendarServiceFactory: (accessToken, refreshToken) =>
       createGoogleCalendarService(accessToken, refreshToken, config),
   }),
 );
+
+app.use('/preferences', createPreferencesRouter({ preferences: deps.preferences }));
 
 app.listen(config.PORT, () => {
   console.log(`Server running on port ${config.PORT}`);
