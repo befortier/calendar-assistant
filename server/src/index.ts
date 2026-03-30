@@ -36,6 +36,15 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/version', (_req, res) => {
+  res.json({
+    sha: process.env.RAILWAY_GIT_COMMIT_SHA ?? 'local',
+    branch: process.env.RAILWAY_GIT_BRANCH ?? 'local',
+    service: process.env.RAILWAY_SERVICE_NAME ?? 'local',
+    deployedAt: process.env.RAILWAY_DEPLOYMENT_ID ? new Date().toISOString() : null,
+  });
+});
+
 const auth = jwtMiddleware(config.JWT_SECRET);
 
 app.use('/calendar', auth);
