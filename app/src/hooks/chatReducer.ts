@@ -77,7 +77,9 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       const duplicate = state.items.some(
         (i) => i.type === 'event_proposal' &&
           i.event.start === action.proposal.event.start &&
-          i.event.end === action.proposal.event.end,
+          i.event.end === action.proposal.event.end &&
+          i.event.title === action.proposal.event.title &&
+          i.action === action.proposal.action,
       );
       if (duplicate) return state;
       return { ...state, items: [...state.items, action.proposal] };

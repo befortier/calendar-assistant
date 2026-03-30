@@ -23,7 +23,7 @@ export interface CalendarToolDispatcher {
 export function makeCalendarToolDispatcher(
   service: GoogleCalendarService,
   userTimeZone?: string,
-  emit?: SSEEmitter,
+  emit: SSEEmitter,
 ): CalendarToolDispatcher {
   return { dispatch: (name, input) => dispatchTool(name, input, service, userTimeZone, emit) };
 }
@@ -37,7 +37,7 @@ async function dispatchTool(
   input: Record<string, unknown>,
   service: GoogleCalendarService,
   userTimeZone?: string,
-  emit?: SSEEmitter,
+  emit: SSEEmitter,
 ): Promise<string> {
   switch (name) {
     case 'get_events':              return handleGetEvents(input, service);
@@ -174,28 +174,25 @@ function toAction(input: Record<string, unknown>): 'create' | 'update' | 'delete
     : 'create');
 }
 
-function handleProposeEvent(input: Record<string, unknown>, emit: SSEEmitter | undefined): Promise<string> {
-  if (emit) {
-    const sanitized = sanitizeProposalInput(input);
-    emit({
-      event: SSEEventType.EventProposal,
-      data: { id: (sanitized.id as string) || crypto.randomUUID(), action: toAction(sanitized), event: toCalendarEvent(sanitized) },
-    });
-  }
+function handleProposeEvent(input: Record<string, unknown>, emit: SSEEmitter): Promise<string> {
+  const sanitized = sanitizeProposalInput(input);
+  emit({
+    event: SSEEventType.EventProposal,
+    data: { id: (sanitized.id as string) || crypto.randomUUID(), action: toAction(sanitized), event: toCalendarEvent(sanitized) },
+  });
   return Promise.resolve('Proposal shown to user.');
 }
 
-function handleProposeBatchedEvents(input: Record<string, unknown>, emit: SSEEmitter | undefined): Promise<string> {
-  if (emit) {
-    const rawEvents = Array.isArray(input.events) ? (input.events as Record<string, unknown>[]) : [];
-    const entries: BatchProposalEntry[] = rawEvents.map((e, i) => ({
-      id: `batch-${i}`,
-      action: toAction(e),
-      event: toCalendarEvent(e),
-    }));
-    if (entries.length > 0) {
-      emit({ event: SSEEventType.BatchProposal, data: { batchId: crypto.randomUUID(), entries } });
-    }
+function handleProposeBatchedEvents(input: Record<string, unknown>, emit: SSEEmitter): Promise<string> {
+  const rawEvents = Array.isArray(input.events) ? (input.events as Record<string, unknown>[]) : [];
+  const batchId = crypto.randomUUID();
+  const entries: BatchProposalEntry[] = rawEvents.map((e, i) => ({
+    id: `${batchId}-${i}`,
+    action: toAction(e),
+    event: toCalendarEvent(e),
+  }));
+  if (entries.length > 0) {
+    emit({ event: SSEEventType.BatchProposal, data: { batchId, entries } });
   }
   return Promise.resolve('Proposal shown to user.');
 }
