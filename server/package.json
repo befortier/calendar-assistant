@@ -7,6 +7,8 @@
     "build": "tsc -p tsconfig.build.json && cp -r src/db/migrations dist/db/",
     "start": "node dist/index.js",
     "test": "vitest run",
+    "test:unit": "vitest run --config vitest.unit.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:watch": "vitest",
     "lint": "eslint src --max-warnings=0",
     "lint:fix": "eslint src --fix"
