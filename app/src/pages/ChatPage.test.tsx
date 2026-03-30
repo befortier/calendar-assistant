@@ -3,6 +3,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import ChatPage from './ChatPage';
+import { useChatStore } from '../stores/chat';
+import { initialState } from '../hooks/chatReducer';
 
 function renderPage() {
   return render(<MemoryRouter><ChatPage /></MemoryRouter>);
@@ -28,6 +30,7 @@ vi.mock('../stores/auth', () => ({
 describe('ChatPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useChatStore.setState({ ...initialState, dispatch: useChatStore.getState().dispatch });
   });
 
   it('renders empty state', () => {

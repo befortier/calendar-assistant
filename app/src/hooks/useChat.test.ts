@@ -15,11 +15,15 @@ vi.mock('../stores/calendar', () => ({
 }));
 
 import { streamChat } from '../lib/streamChat';
+import { useChatStore } from '../stores/chat';
+import { initialState } from './chatReducer';
 
 const mockStreamChat = vi.mocked(streamChat);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Reset store between tests so state doesn't leak across test cases
+  useChatStore.setState({ ...initialState, dispatch: useChatStore.getState().dispatch });
 });
 
 describe('useChat', () => {
