@@ -21,7 +21,17 @@ server/       Express API (TypeScript + Claude AI + Google Calendar API)
 - **Google Cloud project** with OAuth 2.0 credentials and Calendar API enabled
 - **Anthropic API key** from [console.anthropic.com](https://console.anthropic.com)
 
-## Setup
+## Quick Start
+
+```bash
+git clone git@github.com:befortier/calendar-assistant.git
+cd calendar-assistant
+./setup.sh
+```
+
+The setup script installs dependencies, prompts for your API keys, generates secrets, and writes the env files. When it finishes, run `npm run dev`.
+
+## Manual Setup
 
 ### 1. Clone and install
 
