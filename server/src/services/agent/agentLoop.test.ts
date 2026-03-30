@@ -2,7 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { runAgentLoop, type AgentLoopDeps } from './agentLoop';
 import type { LLMProvider, StreamResult, ChatMessage, ToolDefinition } from './types';
 import { StopReason } from './types';
-import { SSEEventType, type SSEEvent } from '../sse';
+import { SSEEventType, type SSEEvent, type SSEEmitter } from '../sse';
+import { makeCalendarToolDispatcher } from '../tools/calendar/dispatcher';
+import type { GoogleCalendarService } from '../googleCalendar';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -37,8 +39,24 @@ function makeDeps(overrides: Partial<AgentLoopDeps> = {}): AgentLoopDeps {
   };
 }
 
-function collectEvents(events: SSEEvent[]): (event: SSEEvent) => void {
+function collectEvents(events: SSEEvent[]): SSEEmitter {
   return (event) => events.push(event);
+}
+
+/** Build a dispatchTool that routes proposal tools through the dispatcher (with emit), and other tools through a mock. */
+function makeDispatchToolWithEmitter(
+  emit: SSEEmitter,
+  otherDispatch: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue('ok'),
+): { dispatchTool: (name: string, input: Record<string, unknown>) => Promise<string>; otherDispatch: ReturnType<typeof vi.fn> } {
+  const stubService = {} as GoogleCalendarService;
+  const dispatcher = makeCalendarToolDispatcher(stubService, undefined, emit);
+  const dispatchTool = async (name: string, input: Record<string, unknown>): Promise<string> => {
+    if (name === 'propose_event' || name === 'propose_batched_events') {
+      return dispatcher.dispatch(name, input);
+    }
+    return otherDispatch(name, input);
+  };
+  return { dispatchTool, otherDispatch };
 }
 
 // ---------------------------------------------------------------------------
@@ -91,8 +109,8 @@ describe('runAgentLoop', () => {
     expect(provider.stream).toHaveBeenCalledTimes(2);
   });
 
-  // c. Proposals — accumulated then flushed on end_turn
-  it('emits event_proposal on end_turn and does NOT dispatch propose_event', async () => {
+  // c. Proposals — now dispatched immediately via dispatchTool (which holds a reference to the emitter)
+  it('emits event_proposal immediately and does NOT call the underlying Google service', async () => {
     const proposal = {
       id: 'tc-p1',
       name: 'propose_event',
@@ -106,25 +124,25 @@ describe('runAgentLoop', () => {
       { stopReason: StopReason.ToolUse, text: '', toolCalls: [proposal] },
       { stopReason: StopReason.EndTurn, text: '', toolCalls: [] },
     ]);
-    const dispatchTool = vi.fn();
-    const deps = makeDeps({ provider, dispatchTool });
     const events: SSEEvent[] = [];
+    const emit = collectEvents(events);
+    const { dispatchTool, otherDispatch } = makeDispatchToolWithEmitter(emit);
+    const deps = makeDeps({ provider, dispatchTool });
 
     await runAgentLoop(
       [{ role: 'user', content: 'Schedule lunch' }],
       deps,
-      collectEvents(events),
+      emit,
     );
 
     const proposalEvents = events.filter((e) => e.event === SSEEventType.EventProposal);
     expect(proposalEvents).toHaveLength(1);
     expect(proposalEvents[0].data).toMatchObject({
-      id: 'tc-p1',
       action: 'create',
       event: { title: 'Lunch', start: '2026-03-22T12:00:00Z', end: '2026-03-22T13:00:00Z' },
     });
     expect(events[events.length - 1]).toEqual({ event: SSEEventType.Done, data: {} });
-    expect(dispatchTool).not.toHaveBeenCalled();
+    expect(otherDispatch).not.toHaveBeenCalled();
     expect(provider.stream).toHaveBeenCalledTimes(2);
   });
 
@@ -146,19 +164,21 @@ describe('runAgentLoop', () => {
       { stopReason: StopReason.ToolUse, text: '', toolCalls: proposals },
       { stopReason: StopReason.EndTurn, text: 'Pick one!', toolCalls: [] },
     ]);
-    const deps = makeDeps({ provider });
     const events: SSEEvent[] = [];
+    const emit = collectEvents(events);
+    const { dispatchTool } = makeDispatchToolWithEmitter(emit);
+    const deps = makeDeps({ provider, dispatchTool });
 
     await runAgentLoop(
       [{ role: 'user', content: 'Find me a time' }],
       deps,
-      collectEvents(events),
+      emit,
     );
 
     const proposalEvents = events.filter((e) => e.event === SSEEventType.EventProposal);
     expect(proposalEvents).toHaveLength(2);
-    expect(proposalEvents[0].data).toMatchObject({ id: 'tc-p1', event: { title: 'Option 1' } });
-    expect(proposalEvents[1].data).toMatchObject({ id: 'tc-p2', event: { title: 'Option 2' } });
+    expect(proposalEvents[0].data).toMatchObject({ event: { title: 'Option 1' } });
+    expect(proposalEvents[1].data).toMatchObject({ event: { title: 'Option 2' } });
     expect(events.filter((e) => e.event === SSEEventType.BatchProposal)).toHaveLength(0);
   });
 
@@ -176,20 +196,21 @@ describe('runAgentLoop', () => {
       ]},
       { stopReason: StopReason.EndTurn, text: 'Pick one!', toolCalls: [] },
     ]);
-    const dispatchTool = vi.fn();
-    const deps = makeDeps({ provider, dispatchTool });
     const events: SSEEvent[] = [];
+    const emit = collectEvents(events);
+    const { dispatchTool, otherDispatch } = makeDispatchToolWithEmitter(emit);
+    const deps = makeDeps({ provider, dispatchTool });
 
     await runAgentLoop(
       [{ role: 'user', content: 'Give me 3 options' }],
       deps,
-      collectEvents(events),
+      emit,
     );
 
     const proposalEvents = events.filter((e) => e.event === SSEEventType.EventProposal);
     expect(proposalEvents).toHaveLength(3);
     expect(events.filter((e) => e.event === SSEEventType.BatchProposal)).toHaveLength(0);
-    expect(dispatchTool).not.toHaveBeenCalled();
+    expect(otherDispatch).not.toHaveBeenCalled();
     expect(provider.stream).toHaveBeenCalledTimes(4);
   });
 
@@ -210,13 +231,15 @@ describe('runAgentLoop', () => {
       { stopReason: StopReason.ToolUse, text: '', toolCalls: [batchCall] },
       { stopReason: StopReason.EndTurn, text: '', toolCalls: [] },
     ]);
-    const deps = makeDeps({ provider });
     const events: SSEEvent[] = [];
+    const emit = collectEvents(events);
+    const { dispatchTool } = makeDispatchToolWithEmitter(emit);
+    const deps = makeDeps({ provider, dispatchTool });
 
     await runAgentLoop(
       [{ role: 'user', content: 'Schedule standup M/W/F' }],
       deps,
-      collectEvents(events),
+      emit,
     );
 
     const batchEvents = events.filter((e) => e.event === SSEEventType.BatchProposal);

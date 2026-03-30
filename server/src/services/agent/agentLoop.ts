@@ -1,9 +1,7 @@
-import type { LLMProvider, ChatMessage, ToolDefinition, ToolCall } from './types';
+import type { LLMProvider, ChatMessage, ToolDefinition } from './types';
 import { StopReason } from './types';
 import type { SSEEmitter } from '../sse';
-import { SSEEventType, isProposalTool } from '../sse';
-import type { CalendarEvent } from '../googleCalendar';
-import type { BatchProposalEntry } from '../sse';
+import { SSEEventType } from '../sse';
 
 const MAX_ITERATIONS = 10;
 
@@ -21,7 +19,6 @@ export async function runAgentLoop(
 ): Promise<void> {
   const system = deps.buildSystemPrompt();
   const messages: ChatMessage[] = [...inputMessages];
-  const pendingProposals: ToolCall[] = [];
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     emit({ event: SSEEventType.Status, data: { type: 'thinking' } });
@@ -35,16 +32,6 @@ export async function runAgentLoop(
 
     switch (result.stopReason) {
       case StopReason.EndTurn: {
-        // Proposals are accumulated throughout the loop rather than emitted immediately,
-        // so the user sees the complete final set once the model has fully settled on its answer.
-        if (pendingProposals.length > 0) {
-          const singles = pendingProposals
-            .filter((tc) => tc.name === 'propose_event')
-            .map(sanitizeProposal);
-          const batches = pendingProposals.filter((tc) => tc.name === 'propose_batched_events');
-          const deduped = deduplicateProposals(singles);
-          emitProposals([...deduped, ...batches], emit);
-        }
         emit({ event: SSEEventType.Done, data: {} });
         return;
       }
@@ -59,27 +46,6 @@ export async function runAgentLoop(
         // Treat it the same as MaxTokens — nudge and retry.
         if (result.toolCalls.length === 0) {
           handleIncompleteResponse(messages, result.text);
-          continue;
-        }
-
-        const proposals = result.toolCalls.filter((tc) => isProposalTool(tc.name));
-        const otherTools = result.toolCalls.filter((tc) => !isProposalTool(tc.name));
-
-        if (proposals.length > 0) {
-          // Accumulate proposals without dispatching — proposal tools are display-only and
-          // never sent to Google. Feed back a synthetic result so the model can continue.
-          pendingProposals.push(...proposals);
-          messages.push({ role: 'assistant', text: result.text, toolCalls: result.toolCalls });
-          messages.push(...proposals.map((tc) => ({
-            role: 'tool_result' as const,
-            toolCallId: tc.id,
-            content: 'Proposal shown to user.',
-          })));
-
-          if (otherTools.length > 0) {
-            const toolResults = await dispatchAll(otherTools, deps.dispatchTool, emit);
-            messages.push(...toolResults);
-          }
           continue;
         }
 
@@ -113,87 +79,8 @@ function handleIncompleteResponse(messages: ChatMessage[], text: string): void {
   messages.push({ role: 'user', content: 'Please continue.' });
 }
 
-function toCalendarEvent(input: Record<string, unknown>): CalendarEvent {
-  return {
-    id: (input.id as string) ?? '',
-    title: (input.title as string) ?? 'Untitled',
-    start: (input.start as string) ?? '',
-    end: (input.end as string) ?? '',
-    allDay: Boolean(input.allDay),
-    attendees: Array.isArray(input.attendees)
-      ? input.attendees.filter((e): e is string => typeof e === 'string').map((email) => ({ email }))
-      : undefined,
-    location: input.location as string | undefined,
-    description: input.description as string | undefined,
-  };
-}
-
-function toAction(input: Record<string, unknown>): 'create' | 'update' | 'delete' {
-  return (['create', 'update', 'delete'].includes(input.action as string)
-    ? input.action as 'create' | 'update' | 'delete'
-    : 'create');
-}
-
-function emitProposals(toolCalls: ToolCall[], emit: SSEEmitter): void {
-  for (const tc of toolCalls) {
-    if (tc.name === 'propose_batched_events') {
-      // Expand the events array into a single BatchProposal
-      const rawEvents = Array.isArray(tc.input.events)
-        ? (tc.input.events as Record<string, unknown>[])
-        : [];
-      const entries: BatchProposalEntry[] = rawEvents.map((e, i) => ({
-        id: `${tc.id}-${i}`,
-        action: toAction(e),
-        event: toCalendarEvent(e),
-      }));
-      if (entries.length > 0) {
-        emit({ event: SSEEventType.BatchProposal, data: { batchId: crypto.randomUUID(), entries } });
-      }
-    } else {
-      // propose_event — always individual, never batched
-      emit({
-        event: SSEEventType.EventProposal,
-        data: { id: tc.id, action: toAction(tc.input), event: toCalendarEvent(tc.input) },
-      });
-    }
-  }
-}
-
-/** Removes duplicate proposals (same start + end time). Keeps first occurrence. */
-function deduplicateProposals(proposals: ToolCall[]): ToolCall[] {
-  const seen = new Set<string>();
-  return proposals.filter((tc) => {
-    const key = `${String(tc.input.start)}|${String(tc.input.end)}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-/** Cleans up a propose_event tool call, normalizing fields the model sometimes mangles. */
-function sanitizeProposal(tc: ToolCall): ToolCall {
-  const input = { ...tc.input };
-
-  // The model sometimes embeds XML-like content in the id field that contains the title.
-  // Extract a clean title from wherever we can find it.
-  const rawId = typeof input.id === 'string' ? input.id : '';
-  const rawTitle = typeof input.title === 'string' ? input.title : '';
-
-  // If id contains non-ID content (XML tags, long strings), it's mangled — clear it.
-  if (rawId.length > 100 || rawId.includes('<') || rawId.includes('\n')) {
-    input.id = '';
-  }
-
-  // If title is missing but we can find something usable, fall back.
-  if (!rawTitle.trim()) {
-    input.title = 'Meeting';
-  }
-
-  return { ...tc, input };
-}
-
 async function dispatchAll(
-  toolCalls: ToolCall[],
+  toolCalls: import('./types').ToolCall[],
   dispatch: (name: string, input: Record<string, unknown>) => Promise<string>,
   emit: SSEEmitter,
 ): Promise<ChatMessage[]> {

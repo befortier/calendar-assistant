@@ -73,8 +73,15 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, items };
     }
 
-    case 'ADD_PROPOSAL':
+    case 'ADD_PROPOSAL': {
+      const duplicate = state.items.some(
+        (i) => i.type === 'event_proposal' &&
+          i.event.start === action.proposal.event.start &&
+          i.event.end === action.proposal.event.end,
+      );
+      if (duplicate) return state;
       return { ...state, items: [...state.items, action.proposal] };
+    }
 
     case 'ADD_BATCH_PROPOSAL':
       return { ...state, items: [...state.items, action.proposal] };
