@@ -15,7 +15,9 @@ export function useChat() {
   const loading = useChatStore((s) => s.loading);
   const status = useChatStore((s) => s.status);
   const error = useChatStore((s) => s.error);
-  const dispatch = useChatStore((s) => s.dispatch);
+  // dispatch is a stable reference (defined once in create()) — use getState() to avoid a
+  // reactive subscription that can never fire.
+  const dispatch = useChatStore.getState().dispatch;
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const itemsRef = useRef(items);
