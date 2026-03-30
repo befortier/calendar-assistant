@@ -10,6 +10,7 @@
     "dev:app": "npm run dev --workspace=app",
     "dev:server": "npm run dev --workspace=server",
     "dev": "concurrently \"npm run dev:app\" \"npm run dev:server\"",
+    "test": "npm test --workspace=app && npm test --workspace=server",
     "lint": "npm run lint --workspace=app && npm run lint --workspace=server",
     "lint:fix": "npm run lint:fix --workspace=app && npm run lint:fix --workspace=server",
     "prepare": "husky"
