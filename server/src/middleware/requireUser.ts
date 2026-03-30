@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import type { IUserRepository, User } from '../db/user-repository';
+import { AuthenticationError } from '../errors';
 
 /** A user record with refresh token guaranteed present (validated by requireUser). */
 export interface AuthenticatedUser extends User {
@@ -52,7 +53,7 @@ export function requireUser(users: IUserRepository) {
 export function getAuthenticatedUser(req: Request): AuthenticatedUser {
   const user = req.authenticatedUser;
   if (!user) {
-    throw new Error('requireUser middleware was not applied to this route');
+    throw new AuthenticationError('requireUser middleware was not applied to this route');
   }
   return user;
 }

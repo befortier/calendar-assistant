@@ -5,6 +5,7 @@ import { config } from './config';
 import { Dependencies } from './dependencies';
 import { jwtMiddleware } from './auth/jwt';
 import { requireUser } from './middleware/requireUser';
+import { AuthenticationError } from './errors';
 import { createAuthRouter } from './routes/auth';
 import { createChatRouter } from './routes/chat';
 import { createPreferencesRouter } from './routes/preferences';
@@ -74,10 +75,15 @@ app.use('/preferences', createPreferencesRouter({ preferences: deps.preferences 
 
 // Centralized error handler — catches unhandled errors from async route handlers
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Unhandled error:', err);
-  if (!res.headersSent) {
-    res.status(500).json({ error: 'Internal server error' });
+  if (res.headersSent) return;
+
+  if (err instanceof AuthenticationError) {
+    res.status(401).json({ error: err.message });
+    return;
   }
+
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 app.listen(config.PORT, () => {

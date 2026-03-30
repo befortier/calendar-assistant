@@ -54,11 +54,15 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
   const router = Router();
 
   router.post('/', async (req, res) => {
+    const user = getAuthenticatedUser(req);
+
     const parsed = ChatRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
       return;
     }
+
+    const calendarService = deps.calendarServiceFactory(user.accessToken, user.refreshToken, parsed.data.calendarId);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -69,8 +73,6 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
     res.on('close', () => { closed = true; });
 
     try {
-      const user = getAuthenticatedUser(req);
-      const calendarService = deps.calendarServiceFactory(user.accessToken, user.refreshToken, parsed.data.calendarId);
 
       const emit = (event: SSEEvent): void => { if (!closed) res.write(formatSSE(event)); };
       const chatMessages: ChatMessage[] = parsed.data.messages.map((m): ChatMessage =>
