@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { createCalendarsRouter, type CalendarsRouterDeps } from './calendars';
+import { requireUser } from '../middleware/requireUser';
 import type { IUserRepository, User } from '../db/user-repository';
 import type { GoogleCalendarService } from '../services/tools/calendar/google';
 
@@ -20,10 +21,6 @@ const FAKE_CALENDARS = [
 
 function makeDeps(overrides?: Partial<CalendarsRouterDeps>): CalendarsRouterDeps {
   return {
-    users: {
-      upsertUser: vi.fn(),
-      getUserById: vi.fn().mockReturnValue(FAKE_USER),
-    } as unknown as IUserRepository,
     calendarServiceFactory: vi.fn().mockReturnValue({
       listCalendars: vi.fn().mockResolvedValue(FAKE_CALENDARS),
     } as unknown as GoogleCalendarService),
@@ -31,14 +28,18 @@ function makeDeps(overrides?: Partial<CalendarsRouterDeps>): CalendarsRouterDeps
   };
 }
 
-function makeApp(deps: CalendarsRouterDeps) {
+function makeUserRepo(user: User | null = FAKE_USER): IUserRepository {
+  return { upsertUser: vi.fn(), getUserById: vi.fn().mockReturnValue(user) };
+}
+
+function makeApp(deps: CalendarsRouterDeps, userRepo: IUserRepository = makeUserRepo()) {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
-    (req as unknown as { userId?: string }).userId = 'user-1';
+    req.userId = 'user-1';
     next();
   });
-  app.use('/calendars', createCalendarsRouter(deps));
+  app.use('/calendars', requireUser(userRepo), createCalendarsRouter(deps));
   return app;
 }
 
@@ -65,17 +66,13 @@ describe('GET /calendars', () => {
   });
 
   it('returns 401 when user not found', async () => {
-    const d = makeDeps({ users: { getUserById: vi.fn().mockReturnValue(null), upsertUser: vi.fn() } as unknown as IUserRepository });
-    const res = await request(makeApp(d)).get('/calendars');
+    const res = await request(makeApp(deps, makeUserRepo(null))).get('/calendars');
 
     expect(res.status).toBe(401);
   });
 
   it('returns 401 when user has no refresh token', async () => {
-    const d = makeDeps({
-      users: { getUserById: vi.fn().mockReturnValue({ ...FAKE_USER, refreshToken: null }), upsertUser: vi.fn() } as unknown as IUserRepository,
-    });
-    const res = await request(makeApp(d)).get('/calendars');
+    const res = await request(makeApp(deps, makeUserRepo({ ...FAKE_USER, refreshToken: null }))).get('/calendars');
 
     expect(res.status).toBe(401);
   });

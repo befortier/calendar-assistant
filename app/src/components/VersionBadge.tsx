@@ -11,10 +11,12 @@ export default function VersionBadge() {
   const [version, setVersion] = useState<VersionInfo | null>(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/version`)
+    const controller = new AbortController();
+    fetch(`${API_URL}/version`, { signal: controller.signal })
       .then((r) => r.json())
       .then((data: VersionInfo) => setVersion(data))
       .catch(() => {/* ignore – badge just won't show */});
+    return () => controller.abort();
   }, []);
 
   if (!version || version.sha === 'local') return null;

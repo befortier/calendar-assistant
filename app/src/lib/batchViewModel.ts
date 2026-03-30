@@ -1,5 +1,6 @@
 import type { BatchProposalItem } from '../types/chat';
 import type { CalendarEvent } from './sse';
+import { ACTION_THEMES } from './actionTheme';
 
 type BatchAction = 'create' | 'update' | 'delete';
 
@@ -45,29 +46,29 @@ export interface BatchProposalViewModel {
 export const ACTION_STYLES: Record<BatchAction, ActionStyle> = {
   create: {
     sectionLabel: 'New Events',
-    sectionClassName: 'border-green-400 bg-green-50',
+    sectionClassName: ACTION_THEMES.create.accent,
     acceptLabel: 'Create all',
     acceptedLabel: 'Created',
-    acceptedClassName: 'text-green-600',
-    acceptButtonClassName: 'bg-green-600 hover:bg-green-700',
+    acceptedClassName: ACTION_THEMES.create.text,
+    acceptButtonClassName: ACTION_THEMES.create.buttonHover,
     declineLabel: 'Decline all',
   },
   update: {
     sectionLabel: 'Update Events',
-    sectionClassName: 'border-blue-400 bg-blue-50',
+    sectionClassName: ACTION_THEMES.update.accent,
     acceptLabel: 'Update all',
     acceptedLabel: 'Updated',
-    acceptedClassName: 'text-blue-600',
-    acceptButtonClassName: 'bg-blue-600 hover:bg-blue-700',
+    acceptedClassName: ACTION_THEMES.update.text,
+    acceptButtonClassName: ACTION_THEMES.update.buttonHover,
     declineLabel: 'Decline all',
   },
   delete: {
     sectionLabel: 'Delete Events',
-    sectionClassName: 'border-red-400 bg-red-50',
+    sectionClassName: ACTION_THEMES.delete.accent,
     acceptLabel: 'Confirm delete all',
     acceptedLabel: 'Deleted',
-    acceptedClassName: 'text-red-600',
-    acceptButtonClassName: 'bg-red-600 hover:bg-red-700',
+    acceptedClassName: ACTION_THEMES.delete.text,
+    acceptButtonClassName: ACTION_THEMES.delete.buttonHover,
     declineLabel: 'Cancel',
   },
 };

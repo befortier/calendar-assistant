@@ -1,11 +1,18 @@
-import axios, { type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios';
+import axios, { type InternalAxiosRequestConfig } from 'axios';
+
+/** Framework-agnostic request options — no axios types leak into the interface. */
+export interface RequestOptions {
+  headers?: Record<string, string>;
+  params?: Record<string, string>;
+  signal?: AbortSignal;
+}
 
 /** Abstraction over the HTTP transport — mockable in tests. */
 export interface HttpTransport {
-  get<T>(url: string, config?: AxiosRequestConfig): Promise<{ data: T }>;
-  post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<{ data: T }>;
-  put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<{ data: T }>;
-  delete<T>(url: string, config?: AxiosRequestConfig): Promise<{ data: T }>;
+  get<T>(url: string, config?: RequestOptions): Promise<{ data: T }>;
+  post<T>(url: string, data?: unknown, config?: RequestOptions): Promise<{ data: T }>;
+  put<T>(url: string, data?: unknown, config?: RequestOptions): Promise<{ data: T }>;
+  delete<T>(url: string, config?: RequestOptions): Promise<{ data: T }>;
 }
 
 export interface CalendarInfo {
@@ -56,22 +63,22 @@ export function authInterceptor(getToken: () => string | null): RequestIntercept
 export class ApiClient {
   constructor(private readonly http: HttpTransport) {}
 
-  async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  async get<T>(url: string, config?: RequestOptions): Promise<T> {
     const res = await this.http.get<T>(url, config);
     return res.data;
   }
 
-  async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+  async post<T>(url: string, data?: unknown, config?: RequestOptions): Promise<T> {
     const res = await this.http.post<T>(url, data, config);
     return res.data;
   }
 
-  async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+  async put<T>(url: string, data?: unknown, config?: RequestOptions): Promise<T> {
     const res = await this.http.put<T>(url, data, config);
     return res.data;
   }
 
-  async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  async delete<T>(url: string, config?: RequestOptions): Promise<T> {
     const res = await this.http.delete<T>(url, config);
     return res.data;
   }

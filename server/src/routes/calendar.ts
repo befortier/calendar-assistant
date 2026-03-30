@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import type { IUserRepository } from '../db/user-repository';
+import { getAuthenticatedUser } from '../middleware/requireUser';
 import type { GoogleCalendarService } from '../services/tools/calendar/google';
 
 export interface CalendarRouterDeps {
-  users: IUserRepository;
   calendarServiceFactory: (accessToken: string, refreshToken: string) => GoogleCalendarService;
 }
 
@@ -24,24 +23,9 @@ export function createCalendarRouter(deps: CalendarRouterDeps): Router {
       return;
     }
 
-    const userId = req.userId;
-    if (!userId) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    const user = getAuthenticatedUser(req);
 
     try {
-      const user = deps.users.getUserById(userId);
-      if (!user) {
-        res.status(401).json({ error: 'User not found' });
-        return;
-      }
-
-      if (!user.refreshToken) {
-        res.status(401).json({ error: 'Google session expired — please reauthorize' });
-        return;
-      }
-
       const calendarService = deps.calendarServiceFactory(user.accessToken, user.refreshToken);
       const events = await calendarService.getEvents(startDate, endDate);
       res.json({ events });

@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { config } from './config';
 import { Dependencies } from './dependencies';
 import { jwtMiddleware } from './auth/jwt';
+import { requireUser } from './middleware/requireUser';
 import { createAuthRouter } from './routes/auth';
 import { createChatRouter } from './routes/chat';
 import { createPreferencesRouter } from './routes/preferences';
@@ -18,7 +19,7 @@ deps.migrations.migrate();
 const app = express();
 
 app.use(cors({ origin: config.ALLOWED_ORIGIN }));
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
 
 const googleExchanger = new GoogleTokenExchanger(
   {
@@ -47,9 +48,10 @@ app.get('/version', (_req, res) => {
 
 const auth = jwtMiddleware(config.JWT_SECRET);
 
-app.use('/calendar', auth);
-app.use('/calendars', auth);
-app.use('/chat', auth);
+const userGuard = requireUser(deps.client);
+app.use('/calendar', auth, userGuard);
+app.use('/calendars', auth, userGuard);
+app.use('/chat', auth, userGuard);
 app.use('/preferences', auth);
 
 const provider = new ClaudeAdapter(new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }), config.ANTHROPIC_MODEL);
@@ -57,12 +59,11 @@ const provider = new ClaudeAdapter(new Anthropic({ apiKey: config.ANTHROPIC_API_
 const calendarServiceFactory = (accessToken: string, refreshToken: string, calendarId?: string) =>
   createGoogleCalendarService(accessToken, refreshToken, config, undefined, calendarId);
 
-app.use('/calendars', createCalendarsRouter({ users: deps.client, calendarServiceFactory }));
+app.use('/calendars', createCalendarsRouter({ calendarServiceFactory }));
 
 app.use(
   '/chat',
   createChatRouter({
-    users: deps.client,
     preferences: deps.preferences,
     provider,
     calendarServiceFactory,
@@ -70,6 +71,14 @@ app.use(
 );
 
 app.use('/preferences', createPreferencesRouter({ preferences: deps.preferences }));
+
+// Centralized error handler — catches unhandled errors from async route handlers
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled error:', err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 app.listen(config.PORT, () => {
   console.log(`Server running on port ${config.PORT}`);

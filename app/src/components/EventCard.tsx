@@ -1,5 +1,6 @@
 import type { CalendarEvent } from '../lib/sse';
 import { formatTime } from '../lib/format';
+import { ACTION_THEMES } from '../lib/actionTheme';
 
 export type ProposalStatus = 'pending' | 'accepted' | 'declined';
 export type ProposalAction = 'create' | 'update' | 'delete';
@@ -13,9 +14,9 @@ interface EventCardProps {
 }
 
 const ACTION_CONFIG = {
-  create: { label: 'New Event', accent: 'border-green-400 bg-green-50', accept: 'Create', badge: 'Created', badgeColor: 'text-green-600' },
-  update: { label: 'Update Event', accent: 'border-blue-400 bg-blue-50', accept: 'Update', badge: 'Updated', badgeColor: 'text-blue-600' },
-  delete: { label: 'Delete Event', accent: 'border-red-400 bg-red-50', accept: 'Confirm Delete', badge: 'Deleted', badgeColor: 'text-red-600' },
+  create: { label: 'New Event', accent: ACTION_THEMES.create.accent, accept: 'Create', badge: 'Created', badgeColor: ACTION_THEMES.create.text },
+  update: { label: 'Update Event', accent: ACTION_THEMES.update.accent, accept: 'Update', badge: 'Updated', badgeColor: ACTION_THEMES.update.text },
+  delete: { label: 'Delete Event', accent: ACTION_THEMES.delete.accent, accept: 'Confirm Delete', badge: 'Deleted', badgeColor: ACTION_THEMES.delete.text },
 };
 
 export default function EventCard({ action, event, status, onAccept, onDecline }: EventCardProps) {
