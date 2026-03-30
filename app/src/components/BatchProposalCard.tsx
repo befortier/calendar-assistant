@@ -24,6 +24,7 @@ export default function BatchProposalCard({ item, onAccept, onDecline, onRemoveE
         {vm.groups.map((group) => (
           <ActionGroupSection
             key={group.action}
+            batchId={vm.id}
             group={group}
             isPending={vm.status === 'pending'}
             onRemoveEvent={onRemoveEvent}
@@ -146,14 +147,15 @@ function SingleActionCard({ vm, group, onAccept, onDecline, onRemoveEvent }: Sin
 }
 
 interface ActionGroupSectionProps {
+  batchId: string;
   group: ActionGroupViewModel;
   isPending: boolean;
   onRemoveEvent: (eventId: string) => void;
 }
 
-function ActionGroupSection({ group, isPending, onRemoveEvent }: ActionGroupSectionProps) {
+function ActionGroupSection({ batchId, group, isPending, onRemoveEvent }: ActionGroupSectionProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const listId = `batch-group-${group.action}`;
+  const listId = `batch-group-${batchId}-${group.action}`;
 
   return (
     <div className={`rounded-lg border-l-4 p-3 ${group.style.sectionClassName}`}>
