@@ -1,0 +1,80 @@
+{
+  "description": "Agent proposes a new event, user accepts, agent creates it.",
+  "calendar": { "events": [] },
+  "requests": [
+    {
+      "description": "Request 1: Agent proposes creating a meeting",
+      "messages": [{ "role": "user", "content": "Create a meeting with Alice tomorrow at 10am for 1 hour" }],
+      "llmBeats": [
+        {
+          "stopReason": "tool_use",
+          "text": "",
+          "toolCalls": [
+            {
+              "id": "tc-propose-1",
+              "name": "propose_event",
+              "input": {
+                "action": "create",
+                "title": "Meeting with Alice",
+                "start": "2026-04-01T10:00:00-04:00",
+                "end": "2026-04-01T11:00:00-04:00",
+                "attendees": ["alice@example.com"]
+              }
+            }
+          ]
+        },
+        {
+          "stopReason": "end_turn",
+          "text": "I've proposed creating a meeting with Alice tomorrow at 10 AM. Would you like to confirm?",
+          "toolCalls": []
+        }
+      ],
+      "expectedEvents": ["status", "delta", "event_proposal", "done"]
+    },
+    {
+      "description": "Request 2: User accepts, agent creates the event",
+      "messages": [
+        { "role": "user", "content": "Create a meeting with Alice tomorrow at 10am for 1 hour" },
+        { "role": "assistant", "content": "I've proposed creating a meeting with Alice tomorrow at 10 AM. Would you like to confirm?" },
+        {
+          "role": "user",
+          "content": "Yes, create \"Meeting with Alice\" at 4/1/2026, 10:00:00 AM.",
+          "metadata": {
+            "confirmedProposal": {
+              "action": "create",
+              "eventId": "",
+              "title": "Meeting with Alice",
+              "start": "2026-04-01T10:00:00-04:00",
+              "end": "2026-04-01T11:00:00-04:00",
+              "attendees": ["alice@example.com"]
+            }
+          }
+        }
+      ],
+      "llmBeats": [
+        {
+          "stopReason": "tool_use",
+          "text": "",
+          "toolCalls": [
+            {
+              "id": "tc-create-1",
+              "name": "create_event",
+              "input": {
+                "title": "Meeting with Alice",
+                "start": "2026-04-01T10:00:00-04:00",
+                "end": "2026-04-01T11:00:00-04:00",
+                "attendees": ["alice@example.com"]
+              }
+            }
+          ]
+        },
+        {
+          "stopReason": "end_turn",
+          "text": "Done! I've created the meeting with Alice for tomorrow at 10 AM.",
+          "toolCalls": []
+        }
+      ],
+      "expectedEvents": ["status", "tool_call", "tool_result", "status", "delta", "done"]
+    }
+  ]
+}

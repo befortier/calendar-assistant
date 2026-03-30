@@ -1,0 +1,43 @@
+{
+  "description": "User asks about tomorrow's events. Agent calls get_events, then responds with summary.",
+  "calendar": {
+    "events": [
+      {
+        "id": "evt-1",
+        "summary": "Standup",
+        "start": { "dateTime": "2026-04-01T09:00:00-04:00" },
+        "end": { "dateTime": "2026-04-01T09:30:00-04:00" }
+      },
+      {
+        "id": "evt-2",
+        "summary": "Planning",
+        "start": { "dateTime": "2026-04-01T10:00:00-04:00" },
+        "end": { "dateTime": "2026-04-01T11:00:00-04:00" }
+      }
+    ]
+  },
+  "requests": [
+    {
+      "messages": [{ "role": "user", "content": "What's on my calendar tomorrow?" }],
+      "llmBeats": [
+        {
+          "stopReason": "tool_use",
+          "text": "",
+          "toolCalls": [
+            {
+              "id": "tc-get-1",
+              "name": "get_events",
+              "input": { "start": "2026-04-01", "end": "2026-04-01" }
+            }
+          ]
+        },
+        {
+          "stopReason": "end_turn",
+          "text": "You have 2 meetings tomorrow: Standup at 9 AM and Planning at 10 AM.",
+          "toolCalls": []
+        }
+      ],
+      "expectedEvents": ["status", "tool_call", "tool_result", "status", "delta", "done"]
+    }
+  ]
+}

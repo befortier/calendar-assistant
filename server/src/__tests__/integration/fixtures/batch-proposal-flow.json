@@ -1,0 +1,109 @@
+{
+  "description": "Agent fetches events, proposes deleting 3, user accepts 2 of 3.",
+  "calendar": {
+    "events": [
+      {
+        "id": "evt-1",
+        "summary": "Standup",
+        "start": { "dateTime": "2026-04-01T09:00:00-04:00" },
+        "end": { "dateTime": "2026-04-01T09:30:00-04:00" }
+      },
+      {
+        "id": "evt-2",
+        "summary": "Planning",
+        "start": { "dateTime": "2026-04-01T10:00:00-04:00" },
+        "end": { "dateTime": "2026-04-01T11:00:00-04:00" }
+      },
+      {
+        "id": "evt-3",
+        "summary": "Retro",
+        "start": { "dateTime": "2026-04-01T14:00:00-04:00" },
+        "end": { "dateTime": "2026-04-01T15:00:00-04:00" }
+      }
+    ]
+  },
+  "requests": [
+    {
+      "description": "Request 1: Agent fetches events then proposes batch delete",
+      "messages": [{ "role": "user", "content": "Delete all my meetings tomorrow" }],
+      "llmBeats": [
+        {
+          "stopReason": "tool_use",
+          "text": "",
+          "toolCalls": [
+            {
+              "id": "tc-get-1",
+              "name": "get_events",
+              "input": { "start": "2026-04-01", "end": "2026-04-01" }
+            }
+          ]
+        },
+        {
+          "stopReason": "tool_use",
+          "text": "",
+          "toolCalls": [
+            {
+              "id": "tc-batch-1",
+              "name": "propose_batched_events",
+              "input": {
+                "events": [
+                  { "action": "delete", "id": "evt-1", "title": "Standup", "start": "2026-04-01T09:00:00-04:00", "end": "2026-04-01T09:30:00-04:00" },
+                  { "action": "delete", "id": "evt-2", "title": "Planning", "start": "2026-04-01T10:00:00-04:00", "end": "2026-04-01T11:00:00-04:00" },
+                  { "action": "delete", "id": "evt-3", "title": "Retro", "start": "2026-04-01T14:00:00-04:00", "end": "2026-04-01T15:00:00-04:00" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "stopReason": "end_turn",
+          "text": "I found 3 meetings tomorrow. Would you like to delete all of them?",
+          "toolCalls": []
+        }
+      ],
+      "expectedEvents": ["status", "tool_call", "tool_result", "status", "delta", "batch_proposal", "done"]
+    },
+    {
+      "description": "Request 2: User accepts 2 of 3 (removed Retro), agent deletes them",
+      "messages": [
+        { "role": "user", "content": "Delete all my meetings tomorrow" },
+        { "role": "assistant", "content": "I found 3 meetings tomorrow. Would you like to delete all of them?" },
+        {
+          "role": "user",
+          "content": "Yes, delete all 2 events.",
+          "metadata": {
+            "confirmedBatch": {
+              "batchId": "batch-1",
+              "entries": [
+                { "eventId": "evt-1", "action": "delete", "title": "Standup", "start": "2026-04-01T09:00:00-04:00", "end": "2026-04-01T09:30:00-04:00" },
+                { "eventId": "evt-2", "action": "delete", "title": "Planning", "start": "2026-04-01T10:00:00-04:00", "end": "2026-04-01T11:00:00-04:00" }
+              ]
+            }
+          }
+        }
+      ],
+      "llmBeats": [
+        {
+          "stopReason": "tool_use",
+          "text": "",
+          "toolCalls": [
+            { "id": "tc-del-1", "name": "delete_event", "input": { "id": "evt-1" } }
+          ]
+        },
+        {
+          "stopReason": "tool_use",
+          "text": "",
+          "toolCalls": [
+            { "id": "tc-del-2", "name": "delete_event", "input": { "id": "evt-2" } }
+          ]
+        },
+        {
+          "stopReason": "end_turn",
+          "text": "Done! I've deleted Standup and Planning.",
+          "toolCalls": []
+        }
+      ],
+      "expectedEvents": ["status", "tool_call", "tool_result", "status", "tool_call", "tool_result", "status", "delta", "done"]
+    }
+  ]
+}
