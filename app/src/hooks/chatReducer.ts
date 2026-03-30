@@ -79,14 +79,26 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
           i.event.start === action.proposal.event.start &&
           i.event.end === action.proposal.event.end &&
           i.event.title === action.proposal.event.title &&
-          i.action === action.proposal.action,
+          i.action === action.proposal.action &&
+          JSON.stringify(i.event.recurrence ?? null) === JSON.stringify(action.proposal.event.recurrence ?? null),
       );
       if (duplicate) return state;
       return { ...state, items: [...state.items, action.proposal] };
     }
 
-    case 'ADD_BATCH_PROPOSAL':
+    case 'ADD_BATCH_PROPOSAL': {
+      const fingerprint = (p: typeof action.proposal) =>
+        JSON.stringify(
+          p.entries
+            .map((e) => `${e.action}|${e.event.title}|${e.event.start}|${e.event.end}`)
+            .sort(),
+        );
+      const duplicate = state.items.some(
+        (i) => i.type === 'batch_proposal' && fingerprint(i) === fingerprint(action.proposal),
+      );
+      if (duplicate) return state;
       return { ...state, items: [...state.items, action.proposal] };
+    }
 
     case 'REMOVE_FROM_BATCH': {
       const items = state.items.map((item) => {
