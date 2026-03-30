@@ -28,7 +28,7 @@ export const calendarTools: ToolDefinition[] = [
   },
   {
     name: 'propose_event',
-    description: `Shows a single interactive event card the user can accept or decline. Use this when presenting alternatives — call once per option so the user can pick one. Do NOT use this for a set of events all meant to be accepted together (use propose_batched_events instead).`,
+    description: `Shows a single interactive event card the user can accept or decline. If called multiple times, each card appears as an independent option — accepting one does not affect the others.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -45,7 +45,7 @@ export const calendarTools: ToolDefinition[] = [
   },
   {
     name: 'propose_batched_events',
-    description: `Shows a batch of events the user can accept all at once or decline. Use this when all events in the set are intended to be created together — e.g. a recurring standup on Monday, Wednesday, and Friday. Do NOT use this for alternatives (use propose_event once per option instead).`,
+    description: `Shows a group of events as a single reviewable card. The user can remove individual items, then accept or decline the entire batch at once. Actions can be mixed — creates, updates, and deletes in one batch.`,
     inputSchema: {
       type: 'object',
       properties: {
