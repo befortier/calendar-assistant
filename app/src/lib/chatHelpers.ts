@@ -56,9 +56,14 @@ export function buildConfirmText(items: ChatItem[], proposalId: string, accepted
 }
 
 /** Build a natural-language confirmation for accepting a batch of proposals. */
-export function buildBatchConfirmText(events: CalendarEvent[], action: 'create' | 'update' | 'delete'): string {
+export function buildBatchConfirmText(events: CalendarEvent[], action: 'create' | 'update' | 'delete', isMixed = false): string {
   const count = events.length;
   if (count === 0) return 'Yes, go ahead.';
+  if (isMixed) {
+    return count === 1
+      ? `Yes, confirm "${events[0].title}".`
+      : `Yes, confirm all ${count} changes.`;
+  }
   if (action === 'delete') {
     return count === 1
       ? `Yes, delete "${events[0].title}".`

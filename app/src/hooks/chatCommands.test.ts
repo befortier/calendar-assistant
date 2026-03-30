@@ -188,7 +188,7 @@ describe('createChatCommands', () => {
     });
 
     it('excludes removed events from confirmation', async () => {
-      const deps = makeDeps([batchProposal({ removedIds: ['evt-1'] })]);
+      const deps = makeDeps([batchProposal({ removedIds: ['tc-1'] })]);
       const cmds = createChatCommands(deps);
 
       await cmds.acceptBatch('b-1');

@@ -18,20 +18,31 @@ export interface BatchEntryViewModel {
   action: BatchAction;
   event: CalendarEvent;
   isRemoved: boolean;
-  /** Only shown when this entry's action differs from the batch primary action. */
-  actionLabel: string | null;
 }
 
-export interface BatchProposalViewModel {
-  id: string;
-  status: BatchProposalItem['status'];
-  primaryAction: BatchAction;
+export interface ActionGroupViewModel {
+  action: BatchAction;
   style: ActionStyle;
   entries: BatchEntryViewModel[];
   remainingCount: number;
 }
 
-const ACTION_STYLES: Record<BatchAction, ActionStyle> = {
+export interface BatchProposalViewModel {
+  id: string;
+  status: BatchProposalItem['status'];
+  groups: ActionGroupViewModel[];
+  isMixed: boolean;
+  remainingCount: number;
+  acceptLabel: string;
+  declineLabel: string;
+  /** When not mixed, the single group's style (for backward-compat card coloring). */
+  containerClassName: string;
+  acceptButtonClassName: string;
+  acceptedLabel: string;
+  acceptedClassName: string;
+}
+
+export const ACTION_STYLES: Record<BatchAction, ActionStyle> = {
   create: {
     sectionLabel: 'New Events',
     sectionClassName: 'border-green-400 bg-green-50',
@@ -61,30 +72,89 @@ const ACTION_STYLES: Record<BatchAction, ActionStyle> = {
   },
 };
 
-const ROW_LABELS: Record<BatchAction, string> = {
-  create: 'New',
-  update: 'Update',
-  delete: 'Delete',
-};
+const CANONICAL_ORDER: BatchAction[] = ['create', 'update', 'delete'];
 
 export function toBatchViewModel(item: BatchProposalItem): BatchProposalViewModel {
-  const primaryAction = item.entries[0]?.action ?? 'create';
   const removedSet = new Set(item.removedIds);
 
-  const entries: BatchEntryViewModel[] = item.entries.map((entry) => ({
-    id: entry.id,
-    action: entry.action,
-    event: entry.event,
-    isRemoved: removedSet.has(entry.event.id),
-    actionLabel: entry.action !== primaryAction ? ROW_LABELS[entry.action] : null,
-  }));
+  // Group entries by action
+  const grouped = new Map<BatchAction, BatchEntryViewModel[]>();
+  for (const entry of item.entries) {
+    const vm: BatchEntryViewModel = {
+      id: entry.id,
+      action: entry.action,
+      event: entry.event,
+      isRemoved: removedSet.has(entry.id),
+    };
+    const list = grouped.get(entry.action);
+    if (list) {
+      list.push(vm);
+    } else {
+      grouped.set(entry.action, [vm]);
+    }
+  }
+
+  // Build groups in canonical order for all actions present in entries
+  const allGroups: ActionGroupViewModel[] = [];
+  for (const action of CANONICAL_ORDER) {
+    const entries = grouped.get(action);
+    if (!entries) continue;
+    const remainingCount = entries.filter((e) => !e.isRemoved).length;
+    allGroups.push({
+      action,
+      style: ACTION_STYLES[action],
+      entries,
+      remainingCount,
+    });
+  }
+
+  // Visible groups are those with remaining events (used for mixed layout rendering)
+  const visibleGroups = allGroups.filter((g) => g.remainingCount > 0);
+  const totalRemaining = allGroups.reduce((sum, g) => sum + g.remainingCount, 0);
+  const isMixed = visibleGroups.length > 1;
+
+  // Container-level labels
+  let acceptLabel: string;
+  let declineLabel: string;
+  let containerClassName: string;
+  let acceptButtonClassName: string;
+  let acceptedLabel: string;
+  let acceptedClassName: string;
+
+  if (isMixed) {
+    acceptLabel = 'Confirm all';
+    declineLabel = 'Decline all';
+    containerClassName = 'border-gray-200 bg-white';
+    acceptButtonClassName = 'bg-indigo-600 hover:bg-indigo-700';
+    acceptedLabel = 'Confirmed';
+    acceptedClassName = 'text-indigo-600';
+  } else {
+    // Prefer the visible group's style; fall back to allGroups when all removed
+    const style = (visibleGroups[0] ?? allGroups[0])?.style ?? ACTION_STYLES.create;
+    acceptLabel = style.acceptLabel;
+    declineLabel = style.declineLabel;
+    containerClassName = style.sectionClassName;
+    acceptButtonClassName = style.acceptButtonClassName;
+    acceptedLabel = style.acceptedLabel;
+    acceptedClassName = style.acceptedClassName;
+  }
+
+  // For mixed layout, only include visible groups. For single-action, include the
+  // one visible group (preserving action style) or fall back to allGroups so
+  // the style is preserved even when all events are removed.
+  const groups = isMixed ? visibleGroups : (visibleGroups.length > 0 ? visibleGroups : allGroups);
 
   return {
     id: item.id,
     status: item.status,
-    primaryAction,
-    style: ACTION_STYLES[primaryAction],
-    entries,
-    remainingCount: entries.filter((e) => !e.isRemoved).length,
+    groups,
+    isMixed,
+    remainingCount: totalRemaining,
+    acceptLabel,
+    declineLabel,
+    containerClassName,
+    acceptButtonClassName,
+    acceptedLabel,
+    acceptedClassName,
   };
 }
