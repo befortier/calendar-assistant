@@ -7,6 +7,7 @@ import { calendarTools } from '../services/tools/calendar/tools';
 import { buildSystemPrompt } from '../services/agent/systemPrompt';
 import { makeCalendarToolDispatcher } from '../services/tools/calendar/dispatcher';
 import { formatSSE, SSEEventType } from '../services/sse';
+import type { SSEEmitter, SSEEvent } from '../services/sse';
 import type { LLMProvider, ChatMessage } from '../services/agent/types';
 import type { CalendarServiceFactory, GoogleCalendarService } from '../services/googleCalendar';
 
@@ -37,8 +38,9 @@ function makeDispatchTool(
   userId: string,
   calendarService: GoogleCalendarService,
   timezone: string,
+  emit: SSEEmitter,
 ) {
-  const calendarDispatcher = makeCalendarToolDispatcher(calendarService, timezone);
+  const calendarDispatcher = makeCalendarToolDispatcher(calendarService, emit, timezone);
   return (name: string, input: Record<string, unknown>): Promise<string> => {
     if (name === 'update_preferences') {
       const content = typeof input.content === 'string' ? input.content : '';
@@ -87,6 +89,7 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
     res.on('close', () => { closed = true; });
 
     try {
+      const emit = (event: SSEEvent): void => { if (!closed) res.write(formatSSE(event)); };
       const chatMessages: ChatMessage[] = parsed.data.messages.map((m): ChatMessage =>
         m.role === 'assistant'
           ? { role: 'assistant', text: m.content, toolCalls: [] }
@@ -97,7 +100,7 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
         {
           provider: deps.provider,
           tools: calendarTools,
-          dispatchTool: makeDispatchTool(deps.preferences, userId, calendarService, parsed.data.timezone),
+          dispatchTool: makeDispatchTool(deps.preferences, userId, calendarService, parsed.data.timezone, emit),
           buildSystemPrompt: () =>
             buildSystemPrompt({
               email: user.email,
@@ -107,7 +110,7 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
               calendarName: parsed.data.calendarName,
             }),
         },
-        (event) => { if (!closed) res.write(formatSSE(event)); },
+        emit,
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';

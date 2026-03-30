@@ -1,4 +1,7 @@
 import type { GoogleCalendarService, CreateEventInput, UpdateEventInput, RecurrenceScope } from '../../googleCalendar';
+import type { CalendarEvent } from '../../googleCalendar';
+import type { SSEEmitter, BatchProposalEntry } from '../../sse';
+import { SSEEventType } from '../../sse';
 import { invertBusy } from '../../calendarAlgorithms';
 import { asString, asDate, asStringArray, asRecurrenceScope, asReminders } from '../../agent/llmInputValidation';
 
@@ -13,15 +16,16 @@ export interface CalendarToolDispatcher {
 }
 
 /**
- * Creates a `CalendarToolDispatcher` bound to the given calendar service and
- * user timezone. Input validation is handled internally — callers only see
- * the `dispatch` method.
+ * Creates a `CalendarToolDispatcher` bound to the given calendar service,
+ * user timezone, and SSE emitter. Input validation is handled internally —
+ * callers only see the `dispatch` method.
  */
 export function makeCalendarToolDispatcher(
   service: GoogleCalendarService,
+  emit: SSEEmitter,
   userTimeZone?: string,
 ): CalendarToolDispatcher {
-  return { dispatch: (name, input) => dispatchTool(name, input, service, userTimeZone) };
+  return { dispatch: (name, input) => dispatchTool(name, input, service, emit, userTimeZone) };
 }
 
 // ---------------------------------------------------------------------------
@@ -32,15 +36,18 @@ async function dispatchTool(
   name: string,
   input: Record<string, unknown>,
   service: GoogleCalendarService,
+  emit: SSEEmitter,
   userTimeZone?: string,
 ): Promise<string> {
   switch (name) {
-    case 'get_events':    return handleGetEvents(input, service);
-    case 'get_freebusy':  return handleGetFreebusy(input, service);
-    case 'create_event':  return handleCreateEvent(input, service, userTimeZone);
-    case 'update_event':  return handleUpdateEvent(input, service);
-    case 'delete_event':  return handleDeleteEvent(input, service);
-    default:              throw new Error(`Unknown tool: ${name}`);
+    case 'get_events':              return handleGetEvents(input, service);
+    case 'get_freebusy':            return handleGetFreebusy(input, service);
+    case 'create_event':            return handleCreateEvent(input, service, userTimeZone);
+    case 'update_event':            return handleUpdateEvent(input, service);
+    case 'delete_event':            return handleDeleteEvent(input, service);
+    case 'propose_event':           return handleProposeEvent(input, emit);
+    case 'propose_batched_events':  return handleProposeBatchedEvents(input, emit);
+    default:                        throw new Error(`Unknown tool: ${name}`);
   }
 }
 
@@ -122,4 +129,73 @@ async function handleDeleteEvent(
     input.recurrence_scope != null ? asRecurrenceScope(input.recurrence_scope) : undefined;
   await service.deleteEvent(id, scope);
   return JSON.stringify({ success: true });
+}
+
+// ---------------------------------------------------------------------------
+// Proposal handlers — emit SSE events directly; never touch Google Calendar
+// ---------------------------------------------------------------------------
+
+function sanitizeProposalInput(input: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...input };
+
+  // The model sometimes embeds XML-like content in the id field that contains the title.
+  const rawId = typeof result.id === 'string' ? result.id : '';
+  if (rawId.length > 100 || rawId.includes('<') || rawId.includes('\n')) {
+    result.id = '';
+  }
+
+  // If title is missing, fall back to a sensible default.
+  const rawTitle = typeof result.title === 'string' ? result.title : '';
+  if (!rawTitle.trim()) {
+    result.title = 'Meeting';
+  }
+
+  return result;
+}
+
+function toCalendarEvent(input: Record<string, unknown>): CalendarEvent {
+  return {
+    id: (input.id as string) ?? '',
+    title: (input.title as string) ?? 'Untitled',
+    start: (input.start as string) ?? '',
+    end: (input.end as string) ?? '',
+    allDay: Boolean(input.allDay),
+    attendees: Array.isArray(input.attendees)
+      ? input.attendees.filter((e): e is string => typeof e === 'string').map((email) => ({ email }))
+      : undefined,
+    location: input.location as string | undefined,
+    description: input.description as string | undefined,
+    recurrence: Array.isArray(input.recurrence)
+      ? input.recurrence.filter((r): r is string => typeof r === 'string')
+      : undefined,
+  };
+}
+
+function toAction(input: Record<string, unknown>): 'create' | 'update' | 'delete' {
+  return (['create', 'update', 'delete'].includes(input.action as string)
+    ? input.action as 'create' | 'update' | 'delete'
+    : 'create');
+}
+
+function handleProposeEvent(input: Record<string, unknown>, emit: SSEEmitter): Promise<string> {
+  const sanitized = sanitizeProposalInput(input);
+  emit({
+    event: SSEEventType.EventProposal,
+    data: { id: (sanitized.id as string) || crypto.randomUUID(), action: toAction(sanitized), event: toCalendarEvent(sanitized) },
+  });
+  return Promise.resolve('Proposal shown to user.');
+}
+
+function handleProposeBatchedEvents(input: Record<string, unknown>, emit: SSEEmitter): Promise<string> {
+  const rawEvents = Array.isArray(input.events) ? (input.events as Record<string, unknown>[]) : [];
+  const batchId = crypto.randomUUID();
+  const entries: BatchProposalEntry[] = rawEvents.map((e, i) => ({
+    id: `${batchId}-${i}`,
+    action: toAction(e),
+    event: toCalendarEvent(e),
+  }));
+  if (entries.length > 0) {
+    emit({ event: SSEEventType.BatchProposal, data: { batchId, entries } });
+  }
+  return Promise.resolve('Proposal shown to user.');
 }
