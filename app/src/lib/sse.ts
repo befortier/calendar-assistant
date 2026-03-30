@@ -12,6 +12,7 @@ export interface CalendarEvent {
   attendees?: AttendeeInfo[];
   location?: string;
   description?: string;
+  recurrence?: string[];
 }
 
 export interface BatchProposalEntry {

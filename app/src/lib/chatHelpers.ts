@@ -7,7 +7,7 @@ export function extractMessages(
   items: ChatItem[],
 ): { role: string; content: string; metadata?: ProposalMetadata | BatchProposalMetadata }[] {
   return items
-    .filter((i): i is MessageItem => i.type === 'message')
+    .filter((i): i is MessageItem => i.type === 'message' && (i.role !== 'assistant' || i.content.trim().length > 0))
     .map(({ role, content, metadata }) => ({ role, content, ...(metadata && { metadata }) }));
 }
 
