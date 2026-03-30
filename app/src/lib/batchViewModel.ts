@@ -129,8 +129,8 @@ export function toBatchViewModel(item: BatchProposalItem): BatchProposalViewMode
     acceptedLabel = 'Confirmed';
     acceptedClassName = 'text-indigo-600';
   } else {
-    // Use first group from allGroups (preserves action even when all removed)
-    const style = allGroups[0]?.style ?? ACTION_STYLES.create;
+    // Prefer the visible group's style; fall back to allGroups when all removed
+    const style = (visibleGroups[0] ?? allGroups[0])?.style ?? ACTION_STYLES.create;
     acceptLabel = style.acceptLabel;
     declineLabel = style.declineLabel;
     containerClassName = style.sectionClassName;

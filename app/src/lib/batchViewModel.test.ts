@@ -143,6 +143,16 @@ describe('toBatchViewModel', () => {
       expect(vm.acceptLabel).toBe('Create all');
     });
 
+    it('uses remaining group style when earlier groups are fully removed', () => {
+      // Remove all creates (evt-1, evt-2) and update (evt-3), leaving only delete (evt-4)
+      const withRemoved: BatchProposalItem = { ...MIXED_BATCH, removedIds: ['evt-1', 'evt-2', 'evt-3'] };
+      const vm = toBatchViewModel(withRemoved);
+      expect(vm.isMixed).toBe(false);
+      expect(vm.groups[0].action).toBe('delete');
+      expect(vm.containerClassName).toBe('border-red-400 bg-red-50');
+      expect(vm.acceptLabel).toBe('Confirm delete all');
+    });
+
     it('decrements individual group remainingCount independently', () => {
       const withRemoved: BatchProposalItem = { ...MIXED_BATCH, removedIds: ['evt-1'] };
       const vm = toBatchViewModel(withRemoved);
