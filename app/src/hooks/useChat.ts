@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { streamChat } from '../lib/streamChat';
 import { extractMessages } from '../lib/chatHelpers';
 import { useCalendarStore } from '../stores/calendar';
+import { useChatStore } from '../stores/chat';
 import type { SSEEvent } from '../lib/sse';
-import { chatReducer, initialState } from './chatReducer';
 import type { ChatState } from './chatReducer';
 import { createChatCommands } from './chatCommands';
 
@@ -11,7 +11,13 @@ import { createChatCommands } from './chatCommands';
 export type { ProposalMetadata, MessageItem, ProposalItem, BatchProposalItem, ChatItem } from '../types/chat';
 
 export function useChat() {
-  const [{ items, loading, status, error }, dispatch] = useReducer(chatReducer, initialState);
+  const items = useChatStore((s) => s.items);
+  const loading = useChatStore((s) => s.loading);
+  const status = useChatStore((s) => s.status);
+  const error = useChatStore((s) => s.error);
+  // dispatch is a stable reference (defined once in create()) — use getState() to avoid a
+  // reactive subscription that can never fire.
+  const dispatch = useChatStore.getState().dispatch;
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const itemsRef = useRef(items);
@@ -68,7 +74,7 @@ export function useChat() {
         dispatch({ type: 'STREAM_DONE' });
         break;
     }
-  }, []);
+  }, [dispatch]);
 
   const sendStream = useCallback(
     async (allItems: ChatState['items']) => {
@@ -86,11 +92,10 @@ export function useChat() {
         dispatch({ type: 'SET_ERROR', error: 'Connection lost. Please try again.' });
       }
     },
-    [handleEvent],
+    [dispatch, handleEvent],
   );
 
   // Store sendStream in a ref so commands stay stable across renders.
-  // The ref is updated after every render via useLayoutEffect, same pattern as itemsRef.
   const sendStreamRef = useRef(sendStream);
   useLayoutEffect(() => { sendStreamRef.current = sendStream; });
 
@@ -104,7 +109,7 @@ export function useChat() {
       dispatch,
       sendStream: (allItems) => sendStreamRef.current(allItems),
     });
-  }, []);
+  }, [dispatch]);
 
   const sendMessage = useCallback(
     (text: string) => commandsRef.current?.sendMessage(text) ?? Promise.resolve(),
@@ -113,7 +118,7 @@ export function useChat() {
 
   const removeFromBatch = useCallback((batchId: string, eventId: string) => {
     dispatch({ type: 'REMOVE_FROM_BATCH', batchId, eventId });
-  }, []);
+  }, [dispatch]);
 
   const respondToProposal = useCallback(
     (proposalId: string, accepted: boolean) =>
@@ -131,7 +136,7 @@ export function useChat() {
     [],
   );
 
-  const clearChat = useCallback(() => dispatch({ type: 'CLEAR_CHAT' }), []);
+  const clearChat = useCallback(() => dispatch({ type: 'CLEAR_CHAT' }), [dispatch]);
 
   return {
     items, loading, status, error, bottomRef,
