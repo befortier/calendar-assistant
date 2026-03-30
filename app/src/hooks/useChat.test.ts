@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useChat } from './useChat';
-import type { ChatItem } from '../types/chat';
 
 // Mock streamChat so we can control SSE events
 vi.mock('../lib/streamChat', () => ({
@@ -22,12 +21,6 @@ const mockStreamChat = vi.mocked(streamChat);
 beforeEach(() => {
   vi.clearAllMocks();
 });
-
-// Helper: capture the onEvent callback from the last streamChat call
-function captureOnEvent() {
-  const call = mockStreamChat.mock.calls[mockStreamChat.mock.calls.length - 1];
-  return call[4]; // 5th arg is the onEvent callback
-}
 
 describe('useChat', () => {
   describe('sendMessage', () => {

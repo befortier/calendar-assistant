@@ -1,11 +1,11 @@
-import type { Dispatch, RefObject } from 'react';
+import type { Dispatch } from 'react';
 import type { ChatItem, ProposalItem, BatchProposalItem } from '../types/chat';
 import type { ChatAction } from './chatReducer';
 import { hasPendingProposals } from './chatReducer';
 import { resolveProposal, buildConfirmText, buildBatchConfirmText, buildBatchMetadata } from '../lib/chatHelpers';
 
 export interface ChatCommandDeps {
-  itemsRef: RefObject<ChatItem[]>;
+  getItems: () => ChatItem[];
   dispatch: Dispatch<ChatAction>;
   sendStream: (items: ChatItem[]) => Promise<void>;
 }
@@ -23,13 +23,13 @@ export function createChatCommands(deps: ChatCommandDeps) {
         role: 'user',
         content: text,
       };
-      const allItems = [...(deps.itemsRef.current ?? []), userItem];
+      const allItems = [...(deps.getItems()), userItem];
       deps.dispatch({ type: 'SET_ITEMS', items: allItems });
       await deps.sendStream(allItems);
     },
 
     acceptProposal: async (proposalId: string): Promise<void> => {
-      const items = deps.itemsRef.current ?? [];
+      const items = deps.getItems();
       const proposal = items.find(
         (i): i is ProposalItem => i.type === 'event_proposal' && i.id === proposalId,
       );
@@ -64,7 +64,7 @@ export function createChatCommands(deps: ChatCommandDeps) {
     },
 
     declineProposal: async (proposalId: string): Promise<void> => {
-      const items = deps.itemsRef.current ?? [];
+      const items = deps.getItems();
       const filtered = items.filter(
         (i) => !(i.type === 'event_proposal' && i.id === proposalId),
       );
@@ -78,7 +78,7 @@ export function createChatCommands(deps: ChatCommandDeps) {
     },
 
     acceptBatch: async (batchId: string): Promise<void> => {
-      const items = deps.itemsRef.current ?? [];
+      const items = deps.getItems();
       const batch = items.find(
         (i): i is BatchProposalItem => i.type === 'batch_proposal' && i.id === batchId,
       );
@@ -110,7 +110,7 @@ export function createChatCommands(deps: ChatCommandDeps) {
     },
 
     declineBatch: async (batchId: string): Promise<void> => {
-      const items = deps.itemsRef.current ?? [];
+      const items = deps.getItems();
       const filtered = items.filter(
         (i) => !(i.type === 'batch_proposal' && i.id === batchId),
       );

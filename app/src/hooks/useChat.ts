@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'react';
 import { streamChat } from '../lib/streamChat';
 import { extractMessages } from '../lib/chatHelpers';
 import { useCalendarStore } from '../stores/calendar';
@@ -89,13 +89,26 @@ export function useChat() {
     [handleEvent],
   );
 
-  const commands = useMemo(
-    () => createChatCommands({
-      itemsRef,
+  // Store sendStream in a ref so commands stay stable across renders.
+  // The ref is updated after every render via useLayoutEffect, same pattern as itemsRef.
+  const sendStreamRef = useRef(sendStream);
+  useLayoutEffect(() => { sendStreamRef.current = sendStream; });
+
+  // Commands are created in an effect (only runs once) so they can close over refs
+  // without triggering react-hooks/refs during render.
+  const commandsRef = useRef<ReturnType<typeof createChatCommands> | null>(null);
+  useEffect(() => {
+    if (commandsRef.current) return;
+    commandsRef.current = createChatCommands({
+      getItems: () => itemsRef.current,
       dispatch,
-      sendStream,
-    }),
-    [sendStream],
+      sendStream: (allItems) => sendStreamRef.current(allItems),
+    });
+  }, []);
+
+  const sendMessage = useCallback(
+    (text: string) => commandsRef.current?.sendMessage(text) ?? Promise.resolve(),
+    [],
   );
 
   const removeFromBatch = useCallback((batchId: string, eventId: string) => {
@@ -104,21 +117,24 @@ export function useChat() {
 
   const respondToProposal = useCallback(
     (proposalId: string, accepted: boolean) =>
-      accepted ? commands.acceptProposal(proposalId) : commands.declineProposal(proposalId),
-    [commands],
+      accepted
+        ? commandsRef.current?.acceptProposal(proposalId) ?? Promise.resolve()
+        : commandsRef.current?.declineProposal(proposalId) ?? Promise.resolve(),
+    [],
   );
 
   const respondToBatch = useCallback(
     (batchId: string, accepted: boolean) =>
-      accepted ? commands.acceptBatch(batchId) : commands.declineBatch(batchId),
-    [commands],
+      accepted
+        ? commandsRef.current?.acceptBatch(batchId) ?? Promise.resolve()
+        : commandsRef.current?.declineBatch(batchId) ?? Promise.resolve(),
+    [],
   );
 
   const clearChat = useCallback(() => dispatch({ type: 'CLEAR_CHAT' }), []);
 
   return {
     items, loading, status, error, bottomRef,
-    sendMessage: commands.sendMessage,
-    respondToProposal, removeFromBatch, respondToBatch, clearChat,
+    sendMessage, respondToProposal, removeFromBatch, respondToBatch, clearChat,
   };
 }
