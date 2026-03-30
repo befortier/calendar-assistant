@@ -91,7 +91,7 @@ describe('usePreferences', () => {
       act(() => { void result.current.save(); });
 
       expect(result.current.status).toBe('saving');
-      await act(() => { resolve({ content: 'new content' }); });
+      act(() => { resolve({ content: 'new content' }); });
     });
 
     it('sets error and returns to idle on failure', async () => {
