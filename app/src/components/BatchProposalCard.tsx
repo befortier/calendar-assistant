@@ -209,7 +209,7 @@ function EventRow({ entry, isPending, onRemoveEvent }: EventRowProps) {
       {isPending && !isRemoved ? (
         <button
           type="button"
-          onClick={() => onRemoveEvent(event.id)}
+          onClick={() => onRemoveEvent(entry.id)}
           className="shrink-0 text-xs text-gray-400 hover:text-gray-600"
           aria-label={`Remove ${event.title} from batch`}
         >

@@ -61,11 +61,11 @@ describe('BatchProposalCard — single-action batch', () => {
     const onRemoveEvent = vi.fn();
     render(<BatchProposalCard item={DELETE_BATCH} onAccept={vi.fn()} onDecline={vi.fn()} onRemoveEvent={onRemoveEvent} />);
     await userEvent.click(screen.getByRole('button', { name: /remove Standup/i }));
-    expect(onRemoveEvent).toHaveBeenCalledWith('evt-1');
+    expect(onRemoveEvent).toHaveBeenCalledWith('tc-1');
   });
 
   it('renders removed events with reduced opacity class and hides their remove button', () => {
-    const withRemoved: BatchProposalItem = { ...DELETE_BATCH, removedIds: ['evt-1'] };
+    const withRemoved: BatchProposalItem = { ...DELETE_BATCH, removedIds: ['tc-1'] };
     render(<BatchProposalCard item={withRemoved} onAccept={vi.fn()} onDecline={vi.fn()} onRemoveEvent={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /remove Standup/i })).not.toBeInTheDocument();
     // Other remove buttons still present
@@ -73,14 +73,14 @@ describe('BatchProposalCard — single-action batch', () => {
   });
 
   it('decrements count when events are removed', () => {
-    const withRemoved: BatchProposalItem = { ...DELETE_BATCH, removedIds: ['evt-1', 'evt-2'] };
+    const withRemoved: BatchProposalItem = { ...DELETE_BATCH, removedIds: ['tc-1', 'tc-2'] };
     render(<BatchProposalCard item={withRemoved} onAccept={vi.fn()} onDecline={vi.fn()} onRemoveEvent={vi.fn()} />);
     expect(screen.getByText(/· 1 event$/i)).toBeInTheDocument();
     expect(screen.getByText(/confirm delete all \(1\)/i)).toBeInTheDocument();
   });
 
   it('disables accept button when all events removed', () => {
-    const allRemoved: BatchProposalItem = { ...DELETE_BATCH, removedIds: ['evt-1', 'evt-2', 'evt-3'] };
+    const allRemoved: BatchProposalItem = { ...DELETE_BATCH, removedIds: ['tc-1', 'tc-2', 'tc-3'] };
     render(<BatchProposalCard item={allRemoved} onAccept={vi.fn()} onDecline={vi.fn()} onRemoveEvent={vi.fn()} />);
     expect(screen.getByRole('button', { name: /confirm delete all \(0\)/i })).toBeDisabled();
   });
@@ -146,7 +146,7 @@ describe('BatchProposalCard — mixed-action batch', () => {
   });
 
   it('hides a section when all its events are removed', () => {
-    const withDeleteRemoved: BatchProposalItem = { ...MIXED_BATCH, removedIds: ['evt-4'] };
+    const withDeleteRemoved: BatchProposalItem = { ...MIXED_BATCH, removedIds: ['tc-4'] };
     render(<BatchProposalCard item={withDeleteRemoved} onAccept={vi.fn()} onDecline={vi.fn()} onRemoveEvent={vi.fn()} />);
     expect(screen.getByText(/new events/i)).toBeInTheDocument();
     expect(screen.getByText(/update events/i)).toBeInTheDocument();
@@ -155,7 +155,7 @@ describe('BatchProposalCard — mixed-action batch', () => {
   });
 
   it('falls back to single-action layout when only one group remains', () => {
-    const mostRemoved: BatchProposalItem = { ...MIXED_BATCH, removedIds: ['evt-3', 'evt-4'] };
+    const mostRemoved: BatchProposalItem = { ...MIXED_BATCH, removedIds: ['tc-3', 'tc-4'] };
     render(<BatchProposalCard item={mostRemoved} onAccept={vi.fn()} onDecline={vi.fn()} onRemoveEvent={vi.fn()} />);
     // Should now use single-action style labels
     expect(screen.getByRole('button', { name: /create all \(2\)/i })).toBeInTheDocument();
@@ -172,9 +172,9 @@ describe('BatchProposalCard — mixed-action batch', () => {
     const onRemoveEvent = vi.fn();
     render(<BatchProposalCard item={MIXED_BATCH} onAccept={vi.fn()} onDecline={vi.fn()} onRemoveEvent={onRemoveEvent} />);
     await userEvent.click(screen.getByRole('button', { name: /remove New Meeting/i }));
-    expect(onRemoveEvent).toHaveBeenCalledWith('evt-1');
+    expect(onRemoveEvent).toHaveBeenCalledWith('tc-1');
     await userEvent.click(screen.getByRole('button', { name: /remove Old Retro/i }));
-    expect(onRemoveEvent).toHaveBeenCalledWith('evt-4');
+    expect(onRemoveEvent).toHaveBeenCalledWith('tc-4');
   });
 
   it('shows confirmed badge when status is accepted', () => {

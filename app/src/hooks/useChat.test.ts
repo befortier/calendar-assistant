@@ -198,14 +198,14 @@ describe('useChat', () => {
       const { result } = renderHook(() => useChat());
       await act(() => result.current.sendMessage('delete meetings'));
 
-      act(() => result.current.removeFromBatch('b-1', 'evt-1'));
+      act(() => result.current.removeFromBatch('b-1', 'tc-1'));
 
       const batch = result.current.items.find(
         (i) => i.type === 'batch_proposal' && i.id === 'b-1',
       );
       if (batch?.type === 'batch_proposal') {
-        expect(batch.removedIds).toContain('evt-1');
-        expect(batch.removedIds).not.toContain('evt-2');
+        expect(batch.removedIds).toContain('tc-1');
+        expect(batch.removedIds).not.toContain('tc-2');
       }
     });
   });

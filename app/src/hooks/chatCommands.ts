@@ -86,7 +86,7 @@ export function createChatCommands(deps: ChatCommandDeps) {
       if (!batch) return;
 
       const remainingEntries = batch.entries
-        .filter((e) => !batch.removedIds.includes(e.event.id));
+        .filter((e) => !batch.removedIds.includes(e.id));
       const remainingEvents = remainingEntries.map((e) => e.event);
       const action = batch.entries[0]?.action ?? 'create';
       const distinctActions = new Set(remainingEntries.map((e) => e.action));

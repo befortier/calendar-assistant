@@ -84,7 +84,7 @@ export function toBatchViewModel(item: BatchProposalItem): BatchProposalViewMode
       id: entry.id,
       action: entry.action,
       event: entry.event,
-      isRemoved: removedSet.has(entry.event.id),
+      isRemoved: removedSet.has(entry.id),
     };
     const list = grouped.get(entry.action);
     if (list) {

@@ -50,7 +50,7 @@ describe('toBatchViewModel', () => {
     });
 
     it('marks removed entries and decrements remainingCount', () => {
-      const withRemoved: BatchProposalItem = { ...DELETE_BATCH, removedIds: ['evt-1', 'evt-2'] };
+      const withRemoved: BatchProposalItem = { ...DELETE_BATCH, removedIds: ['tc-1', 'tc-2'] };
       const vm = toBatchViewModel(withRemoved);
       expect(vm.remainingCount).toBe(1);
       expect(vm.groups[0].remainingCount).toBe(1);
@@ -94,6 +94,28 @@ describe('toBatchViewModel', () => {
     });
   });
 
+  describe('removal uses entry.id not event.id', () => {
+    it('removes only one entry when multiple entries share the same event.id', () => {
+      // Regression: new events all have event.id = "" — removing one should not remove all
+      const batch: BatchProposalItem = {
+        type: 'batch_proposal',
+        id: 'batch-dup',
+        entries: [
+          { id: 'tc-1', action: 'create', event: { id: '', title: 'Standup Mon', start: '2026-03-30T09:00:00Z', end: '2026-03-30T09:30:00Z', allDay: false } },
+          { id: 'tc-2', action: 'create', event: { id: '', title: 'Standup Wed', start: '2026-04-01T09:00:00Z', end: '2026-04-01T09:30:00Z', allDay: false } },
+          { id: 'tc-3', action: 'create', event: { id: '', title: 'Standup Fri', start: '2026-04-03T09:00:00Z', end: '2026-04-03T09:30:00Z', allDay: false } },
+        ],
+        status: 'pending',
+        removedIds: ['tc-1'],
+      };
+      const vm = toBatchViewModel(batch);
+      expect(vm.groups[0].entries[0].isRemoved).toBe(true);
+      expect(vm.groups[0].entries[1].isRemoved).toBe(false);
+      expect(vm.groups[0].entries[2].isRemoved).toBe(false);
+      expect(vm.remainingCount).toBe(2);
+    });
+  });
+
   describe('mixed-action batch', () => {
     it('produces multiple groups in canonical order (create, update, delete)', () => {
       const vm = toBatchViewModel(MIXED_BATCH);
@@ -127,7 +149,7 @@ describe('toBatchViewModel', () => {
     });
 
     it('omits a group when all its entries are removed', () => {
-      const withRemoved: BatchProposalItem = { ...MIXED_BATCH, removedIds: ['evt-4'] };
+      const withRemoved: BatchProposalItem = { ...MIXED_BATCH, removedIds: ['tc-4'] };
       const vm = toBatchViewModel(withRemoved);
       expect(vm.groups).toHaveLength(2);
       expect(vm.groups.map((g) => g.action)).toEqual(['create', 'update']);
@@ -135,7 +157,7 @@ describe('toBatchViewModel', () => {
     });
 
     it('becomes non-mixed when only one group remains after removal', () => {
-      const withRemoved: BatchProposalItem = { ...MIXED_BATCH, removedIds: ['evt-3', 'evt-4'] };
+      const withRemoved: BatchProposalItem = { ...MIXED_BATCH, removedIds: ['tc-3', 'tc-4'] };
       const vm = toBatchViewModel(withRemoved);
       expect(vm.groups).toHaveLength(1);
       expect(vm.groups[0].action).toBe('create');
@@ -145,7 +167,7 @@ describe('toBatchViewModel', () => {
 
     it('uses remaining group style when earlier groups are fully removed', () => {
       // Remove all creates (evt-1, evt-2) and update (evt-3), leaving only delete (evt-4)
-      const withRemoved: BatchProposalItem = { ...MIXED_BATCH, removedIds: ['evt-1', 'evt-2', 'evt-3'] };
+      const withRemoved: BatchProposalItem = { ...MIXED_BATCH, removedIds: ['tc-1', 'tc-2', 'tc-3'] };
       const vm = toBatchViewModel(withRemoved);
       expect(vm.isMixed).toBe(false);
       expect(vm.groups[0].action).toBe('delete');
@@ -154,7 +176,7 @@ describe('toBatchViewModel', () => {
     });
 
     it('decrements individual group remainingCount independently', () => {
-      const withRemoved: BatchProposalItem = { ...MIXED_BATCH, removedIds: ['evt-1'] };
+      const withRemoved: BatchProposalItem = { ...MIXED_BATCH, removedIds: ['tc-1'] };
       const vm = toBatchViewModel(withRemoved);
       expect(vm.groups[0].remainingCount).toBe(1); // 1 create left
       expect(vm.groups[1].remainingCount).toBe(1); // update untouched
