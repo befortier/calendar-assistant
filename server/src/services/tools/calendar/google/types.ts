@@ -105,103 +105,39 @@ export interface CalendarAccessError {
   reason: string;
 }
 
-/**
- * Summarises whether the authenticated user can read a given calendar.
- * - `ok`        — calendar was queried successfully
- * - `forbidden` — OAuth token lacks read permission (maps from `authError`)
- * - `not_found` — calendar does not exist or is not shared with this user (maps from `notFound`)
- * - `unknown`   — any other error reason returned by Google
- */
 export type CalendarAccessStatus = 'ok' | 'forbidden' | 'not_found' | 'unknown';
 
-/**
- * Free/busy information for a single calendar as returned by `getFreeBusy`.
- *
- * `accessible` and `status` convey the same information at different granularities:
- * - `accessible: true`  ↔ `status: 'ok'`    — the calendar was readable; `busy` is populated.
- * - `accessible: false` ↔ `status !== 'ok'` — the calendar could not be read; `errors` explains why.
- *
- * Use `accessible` for a quick boolean guard and `status` when you need to distinguish
- * error subtypes (e.g. to surface a different UI message for `forbidden` vs `not_found`).
- */
 export interface CalendarFreeBusy {
-  /**
-   * `true` when the calendar was successfully queried and `busy` can be trusted.
-   * `false` when an access error occurred — check `status` and `errors` for details.
-   */
   accessible: boolean;
-  /**
-   * Structured access status.  Always `'ok'` when `accessible` is `true`.
-   * One of `'forbidden'`, `'not_found'`, or `'unknown'` when `accessible` is `false`.
-   */
   status: CalendarAccessStatus;
-  /** Busy intervals reported for this calendar. Empty array when `accessible` is `false`. */
   busy: BusyBlock[];
-  /** Raw error objects from Google, present only when `accessible` is `false`. */
   errors?: CalendarAccessError[];
 }
 
-/**
- * Maps each queried calendar email to its free/busy result.
- */
 export type FreeBusyResult = Record<string, CalendarFreeBusy>;
 
-/**
- * Input shape for creating a new calendar event.
- */
 export interface CreateEventInput {
-  /** Event title / summary. */
   title: string;
-  /** ISO 8601 start datetime (or date string for all-day events). */
   start: string;
-  /** ISO 8601 end datetime (or date string for all-day events). */
   end: string;
-  /** List of attendee email addresses to invite. */
   attendees?: string[];
-  /** Event description / notes. */
   description?: string;
-  /** Physical or virtual location. */
   location?: string;
-  /** RRULE / EXDATE recurrence strings (Google Calendar format). */
   recurrence?: string[];
-  /** Custom reminders; omit to use the calendar default. */
   reminders?: EventReminder[];
-  /** When `true`, the event is created as an all-day event using date strings. */
   allDay?: boolean;
-  /** IANA time zone identifier (e.g. `America/Toronto`) applied to start/end. */
   timeZone?: string;
 }
 
-/**
- * Partial update shape for patching an existing event.
- * Only provided fields are sent to the API — omitted fields remain unchanged.
- */
 export interface UpdateEventInput {
-  /** New event title, if changing. */
   title?: string;
-  /** New start datetime or date string, if changing. */
   start?: string;
-  /** New end datetime or date string, if changing. */
   end?: string;
-  /** Replacement attendee list (full replacement, not a merge). */
   attendees?: string[];
-  /** New description, if changing. */
   description?: string;
-  /** New location, if changing. */
   location?: string;
-  /** Replacement reminder overrides, if changing. */
   reminders?: EventReminder[];
-  /** Pass `true` if the updated start/end are date strings (all-day). */
   allDay?: boolean;
 }
 
-/**
- * Controls which instances of a recurring event series are affected by an
- * update or delete operation.
- *
- * - `'this'`              — only the specific instance identified by the event ID
- * - `'this_and_following'` — the identified instance and all future instances in the series
- *                            (requires an instance event ID with the `_YYYYMMDDTHHMMSSZ` suffix)
- * - `'all'`               — every instance in the series (targets the master event)
- */
 export type RecurrenceScope = 'this' | 'this_and_following' | 'all';

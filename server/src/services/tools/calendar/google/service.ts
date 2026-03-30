@@ -3,19 +3,39 @@ import { randomUUID } from 'crypto';
 import type {
   CalendarEvent,
   CalendarInfo,
+  CalendarAccessStatus,
   FreeBusyResult,
   CreateEventInput,
   UpdateEventInput,
   RecurrenceScope,
 } from './types';
-import { normalizeEvent, resolveAccessStatus } from './mappers';
-import { stripRecurrenceSuffix, truncateRruleUntil } from './recurrence';
+import { normalizeEvent as defaultNormalizeEvent, resolveAccessStatus as defaultResolveAccessStatus } from './mappers';
+import { stripRecurrenceSuffix as defaultStripRecurrenceSuffix, truncateRruleUntil as defaultTruncateRruleUntil } from './recurrence';
+
+export interface GoogleCalendarDeps {
+  normalizeEvent: (event: calendar_v3.Schema$Event) => CalendarEvent | null;
+  resolveAccessStatus: (reason: string) => CalendarAccessStatus;
+  stripRecurrenceSuffix: (eventId: string) => string;
+  truncateRruleUntil: (rrule: string, instanceEventId: string) => string;
+}
+
+const defaultDeps: GoogleCalendarDeps = {
+  normalizeEvent: defaultNormalizeEvent,
+  resolveAccessStatus: defaultResolveAccessStatus,
+  stripRecurrenceSuffix: defaultStripRecurrenceSuffix,
+  truncateRruleUntil: defaultTruncateRruleUntil,
+};
 
 export class GoogleCalendarService {
+  private readonly deps: GoogleCalendarDeps;
+
   constructor(
     private readonly calendar: calendar_v3.Calendar,
     private readonly calendarId = 'primary',
-  ) {}
+    deps?: Partial<GoogleCalendarDeps>,
+  ) {
+    this.deps = { ...defaultDeps, ...deps };
+  }
 
   async listCalendars(): Promise<CalendarInfo[]> {
     const res = await this.calendar.calendarList.list({ minAccessRole: 'reader' });
@@ -39,7 +59,7 @@ export class GoogleCalendarService {
     });
 
     return (res.data.items ?? [])
-      .map(normalizeEvent)
+      .map(this.deps.normalizeEvent)
       .filter((e): e is CalendarEvent => e !== null);
   }
 
@@ -58,7 +78,7 @@ export class GoogleCalendarService {
         const busy = (entry?.busy ?? []).map((b) => ({ start: b.start ?? '', end: b.end ?? '' }));
         const errors = entry?.errors?.map((e) => ({ domain: e.domain ?? '', reason: e.reason ?? '' }));
         if (errors?.length) {
-          const status = resolveAccessStatus(errors[0].reason);
+          const status = this.deps.resolveAccessStatus(errors[0].reason);
           return [email, { accessible: false, status, busy, errors }];
         }
         return [email, { accessible: true, status: 'ok' as const, busy }];
@@ -95,13 +115,12 @@ export class GoogleCalendarService {
       requestBody,
       ...(requestBody.conferenceData ? { conferenceDataVersion: 1 } : {}),
     });
-    const event = normalizeEvent(res.data);
+    const event = this.deps.normalizeEvent(res.data);
     if (!event) throw new Error('createEvent: Google returned an event with missing start/end');
     return event;
   }
 
   async updateEvent(eventId: string, updates: UpdateEventInput, scope?: RecurrenceScope): Promise<CalendarEvent> {
-    // Use patch (not events.update) so only provided fields are sent — unspecified fields remain unchanged
     const requestBody: calendar_v3.Schema$Event = {};
     if (updates.title       !== undefined) requestBody.summary     = updates.title;
     if (updates.start       !== undefined) requestBody.start       = updates.allDay ? { date: updates.start } : { dateTime: updates.start };
@@ -115,21 +134,19 @@ export class GoogleCalendarService {
       throw new Error(`updateEvent: this_and_following requires an instance event ID (got '${eventId}')`);
     }
 
-    // 'all' and 'this_and_following' both target the master event (series-level patch).
-    // 'this' or no scope targets the instance ID directly.
     const targetId = (scope === 'all' || scope === 'this_and_following')
-      ? stripRecurrenceSuffix(eventId)
+      ? this.deps.stripRecurrenceSuffix(eventId)
       : eventId;
 
     const res = await this.calendar.events.patch({ calendarId: this.calendarId, eventId: targetId, requestBody });
-    const event = normalizeEvent(res.data);
+    const event = this.deps.normalizeEvent(res.data);
     if (!event) throw new Error('updateEvent: Google returned an event with missing start/end');
     return event;
   }
 
   async deleteEvent(eventId: string, scope?: RecurrenceScope): Promise<void> {
     if (scope === 'all') {
-      await this.calendar.events.delete({ calendarId: this.calendarId, eventId: stripRecurrenceSuffix(eventId) });
+      await this.calendar.events.delete({ calendarId: this.calendarId, eventId: this.deps.stripRecurrenceSuffix(eventId) });
       return;
     }
 
@@ -137,16 +154,15 @@ export class GoogleCalendarService {
       if (!eventId.match(/_\d{8}T\d{6}Z$/)) {
         throw new Error(`deleteEvent: this_and_following requires an instance event ID (got '${eventId}')`);
       }
-      const masterId = stripRecurrenceSuffix(eventId);
+      const masterId = this.deps.stripRecurrenceSuffix(eventId);
       const masterRes = await this.calendar.events.get({ calendarId: this.calendarId, eventId: masterId });
       const recurrence = (masterRes.data.recurrence ?? []).map((rule) =>
-        rule.startsWith('RRULE:') ? truncateRruleUntil(rule, eventId) : rule,
+        rule.startsWith('RRULE:') ? this.deps.truncateRruleUntil(rule, eventId) : rule,
       );
       await this.calendar.events.patch({ calendarId: this.calendarId, eventId: masterId, requestBody: { recurrence } });
       return;
     }
 
-    // 'this' or no scope: delete the instance (or single event) as-is
     await this.calendar.events.delete({ calendarId: this.calendarId, eventId });
   }
 }

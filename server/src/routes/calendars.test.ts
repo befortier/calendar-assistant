@@ -3,7 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import { createCalendarsRouter, type CalendarsRouterDeps } from './calendars';
 import type { IUserRepository, User } from '../db/user-repository';
-import type { GoogleCalendarService } from '../services/googleCalendar';
+import type { GoogleCalendarService } from '../services/tools/calendar/google';
 
 const FAKE_USER: User = {
   id: 'user-1',

@@ -1,4 +1,4 @@
-import type { EventReminder, RecurrenceScope } from '../googleCalendar';
+import type { EventReminder, RecurrenceScope } from '../tools/calendar/google';
 
 const VALID_RECURRENCE_SCOPES: RecurrenceScope[] = ['this', 'this_and_following', 'all'];
 

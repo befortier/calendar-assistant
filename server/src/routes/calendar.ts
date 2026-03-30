@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { IUserRepository } from '../db/user-repository';
-import type { GoogleCalendarService } from '../services/googleCalendar';
+import type { GoogleCalendarService } from '../services/tools/calendar/google';
 
 export interface CalendarRouterDeps {
   users: IUserRepository;

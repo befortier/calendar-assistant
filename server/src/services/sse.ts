@@ -1,4 +1,4 @@
-import type { CalendarEvent } from './googleCalendar';
+import type { CalendarEvent } from './tools/calendar/google';
 
 export const SSEEventType = {
   Status: 'status',

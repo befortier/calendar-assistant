@@ -4,7 +4,7 @@ import request from 'supertest';
 import { createChatRouter, type ChatRouterDeps } from './chat';
 import type { User } from '../db/user-repository';
 import type { LLMProvider } from '../services/agent/types';
-import type { GoogleCalendarService } from '../services/googleCalendar';
+import type { GoogleCalendarService } from '../services/tools/calendar/google';
 
 const FAKE_USER: User = {
   id: 'user-1',

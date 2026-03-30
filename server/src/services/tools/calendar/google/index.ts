@@ -1,6 +1,3 @@
-// Barrel re-export — maintains the same public API as the original googleCalendar.ts
-// so no import paths need to change except calendarSkill.ts (invertBusy → calendarAlgorithms).
-
 export type {
   AttendeeInfo,
   EventReminder,
@@ -17,5 +14,5 @@ export type {
   RecurrenceScope,
 } from './types';
 
-export { GoogleCalendarService } from './service';
+export { GoogleCalendarService, type GoogleCalendarDeps } from './service';
 export { createGoogleCalendarService, type CalendarServiceFactory } from './factory';

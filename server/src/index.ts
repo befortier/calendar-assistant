@@ -10,7 +10,7 @@ import { createPreferencesRouter } from './routes/preferences';
 import { createCalendarsRouter } from './routes/calendars';
 import { GoogleTokenExchanger, realGoogleAuthFactory } from './auth/google';
 import { ClaudeAdapter } from './services/providers/claude/claudeAdapter';
-import { createGoogleCalendarService } from './services/googleCalendar';
+import { createGoogleCalendarService } from './services/tools/calendar/google';
 
 const deps = new Dependencies(config);
 deps.migrations.migrate();
