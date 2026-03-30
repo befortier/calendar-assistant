@@ -46,6 +46,7 @@ export function createChatCommands(deps: ChatCommandDeps) {
               start: proposal.event.start,
               end: proposal.event.end,
               attendees: proposal.event.attendees?.map((a) => a.email),
+              recurrence: proposal.event.recurrence,
             },
           }
         : undefined;

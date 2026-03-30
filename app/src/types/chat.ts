@@ -10,6 +10,7 @@ export interface ProposalMetadata {
     start: string;
     end: string;
     attendees?: string[];
+    recurrence?: string[];
   };
 }
 
@@ -23,6 +24,7 @@ export interface BatchProposalMetadata {
       start: string;
       end: string;
       attendees?: string[];
+      recurrence?: string[];
     }>;
   };
 }

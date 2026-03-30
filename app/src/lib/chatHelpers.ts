@@ -87,6 +87,7 @@ export function buildBatchMetadata(
           start: e.start,
           end: e.end,
           attendees: e.attendees?.map((a) => a.email),
+          recurrence: e.recurrence,
         };
       }),
     },

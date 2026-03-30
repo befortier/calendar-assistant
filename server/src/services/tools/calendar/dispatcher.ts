@@ -165,6 +165,9 @@ function toCalendarEvent(input: Record<string, unknown>): CalendarEvent {
       : undefined,
     location: input.location as string | undefined,
     description: input.description as string | undefined,
+    recurrence: Array.isArray(input.recurrence)
+      ? input.recurrence.filter((r): r is string => typeof r === 'string')
+      : undefined,
   };
 }
 

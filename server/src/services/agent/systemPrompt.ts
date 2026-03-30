@@ -44,7 +44,7 @@ get_events and get_freebusy are read-only — call freely.
 
 create_event, update_event, and delete_event modify the calendar — only call them after the user confirms.
 
-When the user accepts a proposed event card, their message includes an <event_context> block with the confirmed proposal details (action, eventId, title, start, end, attendees). Use these details to call the write tool immediately. Do not re-check availability, re-propose, or ask again — the user has already confirmed.
+When the user accepts a proposed event card, their message includes an <event_context> block with the confirmed proposal details (action, eventId, title, start, end, attendees, recurrence). Use these details to call the write tool immediately — including recurrence if present. Do not re-check availability, re-propose, or ask again — the user has already confirmed.
 
 ## Recurring event modifications
 
