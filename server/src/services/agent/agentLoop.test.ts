@@ -4,7 +4,7 @@ import type { LLMProvider, StreamResult, ChatMessage, ToolDefinition } from './t
 import { StopReason } from './types';
 import { SSEEventType, type SSEEvent, type SSEEmitter } from '../sse';
 import { makeCalendarToolDispatcher } from '../tools/calendar/dispatcher';
-import type { GoogleCalendarService } from '../googleCalendar';
+import type { GoogleCalendarService } from '../tools/calendar/google';
 
 // ---------------------------------------------------------------------------
 // Helpers

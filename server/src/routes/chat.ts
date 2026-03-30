@@ -9,7 +9,7 @@ import { makeCalendarToolDispatcher } from '../services/tools/calendar/dispatche
 import { formatSSE, SSEEventType } from '../services/sse';
 import type { SSEEmitter, SSEEvent } from '../services/sse';
 import type { LLMProvider, ChatMessage } from '../services/agent/types';
-import type { CalendarServiceFactory, GoogleCalendarService } from '../services/googleCalendar';
+import type { CalendarServiceFactory, GoogleCalendarService } from '../services/tools/calendar/google';
 
 export interface ChatRouterDeps {
   users: IUserRepository;

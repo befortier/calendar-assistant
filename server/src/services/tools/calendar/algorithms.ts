@@ -1,4 +1,4 @@
-import type { BusyBlock, FreeSlot } from './googleCalendar';
+import type { BusyBlock, FreeSlot } from './google/types';
 
 // ---------------------------------------------------------------------------
 // Pure utility — invert a list of busy blocks into free windows within a range.

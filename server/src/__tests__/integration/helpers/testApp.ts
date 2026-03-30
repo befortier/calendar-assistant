@@ -6,7 +6,7 @@ import { UserRepository } from '../../../db/user-repository';
 import { PreferencesRepository } from '../../../db/preferences-repository';
 import { signJwt, jwtMiddleware } from '../../../auth/jwt';
 import { createChatRouter } from '../../../routes/chat';
-import { GoogleCalendarService } from '../../../services/googleCalendar/service';
+import { GoogleCalendarService } from '../../../services/tools/calendar/google/service';
 import { ScriptedProvider } from './scriptedProvider';
 import { createMockCalendarApi } from './mockCalendarApi';
 import type { calendar_v3 } from 'googleapis';

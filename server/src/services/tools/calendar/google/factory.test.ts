@@ -17,7 +17,7 @@ vi.mock('googleapis', () => ({
 }));
 
 // Import AFTER vi.mock so the mock is in place
-const { createGoogleCalendarService } = await import('./googleCalendar');
+const { createGoogleCalendarService } = await import('./factory');
 
 const CONFIG = { GOOGLE_CLIENT_ID: 'client-id', GOOGLE_CLIENT_SECRET: 'client-secret' };
 

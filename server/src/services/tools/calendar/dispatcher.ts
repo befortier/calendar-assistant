@@ -1,8 +1,8 @@
-import type { GoogleCalendarService, CreateEventInput, UpdateEventInput, RecurrenceScope } from '../../googleCalendar';
-import type { CalendarEvent } from '../../googleCalendar';
+import type { GoogleCalendarService, CreateEventInput, UpdateEventInput, RecurrenceScope } from './google';
+import type { CalendarEvent } from './google';
 import type { SSEEmitter, BatchProposalEntry } from '../../sse';
 import { SSEEventType } from '../../sse';
-import { invertBusy } from '../../calendarAlgorithms';
+import { invertBusy } from './algorithms';
 import { asString, asDate, asStringArray, asRecurrenceScope, asReminders } from '../../agent/llmInputValidation';
 
 /**

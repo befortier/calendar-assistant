@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { makeCalendarToolDispatcher } from './dispatcher';
-import type { GoogleCalendarService } from '../../googleCalendar';
+import type { GoogleCalendarService } from './google';
 import type { SSEEmitter } from '../../sse';
 
 const noopEmit: SSEEmitter = vi.fn();
