@@ -23,20 +23,17 @@ export function createMockCalendarApi(events: CalendarFixtureEvent[] = []) {
     events: {
       list: vi.fn().mockResolvedValue({ data: { items: events } }),
       insert: vi.fn().mockImplementation(
-        (params: { requestBody: calendar_v3.Schema$Event }) => ({
-          data: { id: `created-${++insertCounter}`, ...params.requestBody },
-        }),
+        (params: { requestBody: calendar_v3.Schema$Event }) =>
+          Promise.resolve({ data: { id: `created-${++insertCounter}`, ...params.requestBody } }),
       ),
       patch: vi.fn().mockImplementation(
-        (params: { eventId: string; requestBody: calendar_v3.Schema$Event }) => ({
-          data: { id: params.eventId, ...params.requestBody },
-        }),
+        (params: { eventId: string; requestBody: calendar_v3.Schema$Event }) =>
+          Promise.resolve({ data: { id: params.eventId, ...params.requestBody } }),
       ),
       delete: vi.fn().mockResolvedValue({}),
       get: vi.fn().mockImplementation(
-        (params: { eventId: string }) => ({
-          data: events.find((e) => e.id === params.eventId) ?? { id: params.eventId },
-        }),
+        (params: { eventId: string }) =>
+          Promise.resolve({ data: events.find((e) => e.id === params.eventId) ?? { id: params.eventId } }),
       ),
     },
     freebusy: {

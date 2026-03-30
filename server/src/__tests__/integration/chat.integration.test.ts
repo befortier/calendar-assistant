@@ -112,7 +112,7 @@ describe('Integration: chat flow', () => {
 
       // Verify get_events was called
       const getEventsCall = events1.find(
-        (e) => e.event === 'tool_call' && (e.data as any).tool === 'get_events',
+        (e) => e.event === 'tool_call' && (e.data as { tool: string }).tool === 'get_events',
       );
       expect(getEventsCall).toBeDefined();
 
@@ -132,7 +132,7 @@ describe('Integration: chat flow', () => {
 
       // Verify two delete_event tool calls
       const deleteCalls = events2.filter(
-        (e) => e.event === 'tool_call' && (e.data as any).tool === 'delete_event',
+        (e) => e.event === 'tool_call' && (e.data as { tool: string }).tool === 'delete_event',
       );
       expect(deleteCalls).toHaveLength(2);
 
