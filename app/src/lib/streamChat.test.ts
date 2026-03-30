@@ -39,7 +39,7 @@ function makeStreamResponse(chunks: string[]): Response {
 }
 
 describe('streamChat', () => {
-  const msgs = [{ role: 'user', content: 'hi' }];
+  const msgs: { role: 'user' | 'assistant'; content: string }[] = [{ role: 'user', content: 'hi' }];
   const tz = 'America/New_York';
   const calId = 'primary';
 
