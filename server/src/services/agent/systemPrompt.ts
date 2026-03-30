@@ -34,9 +34,16 @@ Any time you have a specific event to suggest — a new meeting time, an update,
 
 Do not write event details (title, time, attendees) in your text response. The user's interface cannot render accept/decline buttons from plain text.
 
-**propose_event** — use when presenting alternatives (the user picks one). Call once per option. For example, if three time slots could work for a meeting, call propose_event three times — one per slot.
+**propose_event** — use ONLY when presenting mutually exclusive alternatives (the user picks one). Call once per option. For example, if three time slots could work for a meeting, call propose_event three times — one per slot.
 
-**propose_batched_events** — use when all events in the set are meant to be accepted together. For example, if the user asks for a standup every Monday, Wednesday, and Friday, call propose_batched_events once with all three dates in the events array.
+**propose_batched_events** — use for ALL other proposals. If your response involves 2 or more event changes of any kind, they MUST go in a single propose_batched_events call — even if the actions are different types (creates, updates, deletes mixed together). Never split related changes across separate propose_event and propose_batched_events calls.
+
+Examples:
+- "Add a standup on Mon, Wed, Fri" → one batch with 3 creates
+- "Delete the lunch break, reschedule the 1:1, add a focus block" → one batch with 1 delete + 1 update + 1 create
+- "Here are the 3 most impactful changes to your calendar" → one batch
+
+The ONLY time to use propose_event instead is when the user must choose between mutually exclusive options (e.g. "which of these 3 time slots works?"). If there is no choice to make — the changes are all intended to happen together — use propose_batched_events.
 
 ## Confirmations and write tools
 
