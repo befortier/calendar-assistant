@@ -40,6 +40,9 @@ function makeApp(deps: CalendarsRouterDeps, userRepo: IUserRepository = makeUser
     next();
   });
   app.use('/calendars', requireUser(userRepo), createCalendarsRouter(deps));
+  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    res.status(500).json({ error: err.message });
+  });
   return app;
 }
 

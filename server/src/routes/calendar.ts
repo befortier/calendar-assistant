@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { asyncHandler } from '../middleware/asyncHandler';
 import { getAuthenticatedUser } from '../middleware/requireUser';
 import type { GoogleCalendarService } from '../services/tools/calendar/google';
 
@@ -9,7 +10,7 @@ export interface CalendarRouterDeps {
 export function createCalendarRouter(deps: CalendarRouterDeps): Router {
   const router = Router();
 
-  router.get('/events', async (req, res) => {
+  router.get('/events', asyncHandler(async (req, res) => {
     const { start, end } = req.query;
     if (typeof start !== 'string' || typeof end !== 'string') {
       res.status(400).json({ error: 'Missing required query parameters: start, end (ISO 8601)' });
@@ -33,7 +34,7 @@ export function createCalendarRouter(deps: CalendarRouterDeps): Router {
       console.error('Calendar error:', err);
       res.status(500).json({ error: 'Failed to fetch calendar events' });
     }
-  });
+  }));
 
   return router;
 }

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { IPreferencesRepository } from '../db/preferences-repository';
+import { asyncHandler } from '../middleware/asyncHandler';
 import { getAuthenticatedUser } from '../middleware/requireUser';
 import { runAgentLoop } from '../services/agent/agentLoop';
 import { calendarTools } from '../services/tools/calendar/tools';
@@ -53,7 +54,7 @@ function makeDispatchTool(
 export function createChatRouter(deps: ChatRouterDeps): Router {
   const router = Router();
 
-  router.post('/', async (req, res) => {
+  router.post('/', asyncHandler(async (req, res) => {
     const user = getAuthenticatedUser(req);
 
     const parsed = ChatRequestSchema.safeParse(req.body);
@@ -73,7 +74,6 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
     res.on('close', () => { closed = true; });
 
     try {
-
       const emit = (event: SSEEvent): void => { if (!closed) res.write(formatSSE(event)); };
       const chatMessages: ChatMessage[] = parsed.data.messages.map((m): ChatMessage =>
         m.role === 'assistant'
@@ -103,7 +103,7 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
     } finally {
       res.end();
     }
-  });
+  }));
 
   return router;
 }

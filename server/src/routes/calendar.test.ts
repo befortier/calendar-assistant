@@ -57,6 +57,10 @@ function makeApp(deps: CalendarRouterDeps, userRepo: IUserRepository = makeUserR
     next();
   });
   app.use('/calendar', requireUser(userRepo), createCalendarRouter(deps));
+  // Centralized error handler so next(err) produces a proper response in tests
+  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    res.status(500).json({ error: err.message });
+  });
   return app;
 }
 
