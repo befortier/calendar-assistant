@@ -185,6 +185,14 @@ describe('buildBatchConfirmText', () => {
   it('handles update', () => {
     expect(buildBatchConfirmText(events, 'update')).toBe('Yes, update all 2 events.');
   });
+
+  it('handles mixed batch with multiple events', () => {
+    expect(buildBatchConfirmText(events, 'create', true)).toBe('Yes, confirm all 2 changes.');
+  });
+
+  it('handles mixed batch with single event', () => {
+    expect(buildBatchConfirmText([events[0]], 'create', true)).toBe('Yes, confirm "Standup".');
+  });
 });
 
 // ---------------------------------------------------------------------------

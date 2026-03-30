@@ -85,11 +85,13 @@ export function createChatCommands(deps: ChatCommandDeps) {
       );
       if (!batch) return;
 
-      const remainingEvents = batch.entries
-        .filter((e) => !batch.removedIds.includes(e.event.id))
-        .map((e) => e.event);
+      const remainingEntries = batch.entries
+        .filter((e) => !batch.removedIds.includes(e.event.id));
+      const remainingEvents = remainingEntries.map((e) => e.event);
       const action = batch.entries[0]?.action ?? 'create';
-      const confirmText = buildBatchConfirmText(remainingEvents, action);
+      const distinctActions = new Set(remainingEntries.map((e) => e.action));
+      const isMixed = distinctActions.size > 1;
+      const confirmText = buildBatchConfirmText(remainingEvents, action, isMixed);
       const metadata = buildBatchMetadata(batch, remainingEvents);
 
       const resolved = items.map((i) =>
