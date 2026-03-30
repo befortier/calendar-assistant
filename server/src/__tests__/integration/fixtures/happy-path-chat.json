@@ -1,0 +1,17 @@
+{
+  "description": "User sends a greeting, agent responds with text. No tool calls.",
+  "calendar": { "events": [] },
+  "requests": [
+    {
+      "messages": [{ "role": "user", "content": "Hello!" }],
+      "llmBeats": [
+        {
+          "stopReason": "end_turn",
+          "text": "Hi! I'm your calendar assistant. How can I help you today?",
+          "toolCalls": []
+        }
+      ],
+      "expectedEvents": ["status", "delta", "done"]
+    }
+  ]
+}
