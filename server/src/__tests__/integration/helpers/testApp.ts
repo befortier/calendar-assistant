@@ -5,6 +5,7 @@ import { EncryptionManager } from '../../../crypto';
 import { UserRepository } from '../../../db/user-repository';
 import { PreferencesRepository } from '../../../db/preferences-repository';
 import { signJwt, jwtMiddleware } from '../../../auth/jwt';
+import { requireUser } from '../../../middleware/requireUser';
 import { createChatRouter } from '../../../routes/chat';
 import { GoogleCalendarService } from '../../../services/tools/calendar/google/service';
 import { ScriptedProvider } from './scriptedProvider';
@@ -67,8 +68,8 @@ export function createTestApp(options: TestAppOptions = {}): TestApp {
   app.use(express.json());
 
   const auth = jwtMiddleware(TEST_JWT_SECRET);
-  app.use('/chat', auth);
-  app.use('/chat', createChatRouter({ users, preferences, provider, calendarServiceFactory }));
+  app.use('/chat', auth, requireUser(users));
+  app.use('/chat', createChatRouter({ preferences, provider, calendarServiceFactory }));
 
   return { app, token, provider, calendarApi, db };
 }
