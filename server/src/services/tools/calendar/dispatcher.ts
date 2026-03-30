@@ -188,14 +188,28 @@ function handleProposeEvent(input: Record<string, unknown>, emit: SSEEmitter): P
 
 function handleProposeBatchedEvents(input: Record<string, unknown>, emit: SSEEmitter): Promise<string> {
   const rawEvents = Array.isArray(input.events) ? (input.events as Record<string, unknown>[]) : [];
-  const batchId = crypto.randomUUID();
+  const callId = crypto.randomUUID();
   const entries: BatchProposalEntry[] = rawEvents.map((e, i) => ({
-    id: `${batchId}-${i}`,
+    id: `${callId}-${i}`,
     action: toAction(e),
     event: toCalendarEvent(e),
   }));
-  if (entries.length > 0) {
-    emit({ event: SSEEventType.BatchProposal, data: { batchId, entries } });
+
+  // Group entries by action so mixed batches (delete + create + update)
+  // become separate batch proposals with homogeneous actions.
+  const grouped = new Map<string, BatchProposalEntry[]>();
+  for (const entry of entries) {
+    const existing = grouped.get(entry.action);
+    if (existing) existing.push(entry);
+    else grouped.set(entry.action, [entry]);
   }
+
+  for (const actionEntries of grouped.values()) {
+    emit({
+      event: SSEEventType.BatchProposal,
+      data: { batchId: crypto.randomUUID(), entries: actionEntries },
+    });
+  }
+
   return Promise.resolve('Proposal shown to user.');
 }

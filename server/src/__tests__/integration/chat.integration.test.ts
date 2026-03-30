@@ -8,6 +8,7 @@ import happyPathFixture from './fixtures/happy-path-chat.json';
 import toolCallFixture from './fixtures/tool-call-round-trip.json';
 import singleProposalFixture from './fixtures/single-proposal-flow.json';
 import batchProposalFixture from './fixtures/batch-proposal-flow.json';
+import mixedBatchFixture from './fixtures/mixed-batch-proposal.json';
 
 /** Cast fixture llmBeats to StreamResult[] (JSON imports are untyped). */
 function beats(raw: unknown): StreamResult[] {
@@ -175,6 +176,47 @@ describe('Integration: chat flow', () => {
       expect(text).toContain('Planning');
 
       expect(provider.callCount).toBe(2);
+    });
+  });
+
+  describe('Scenario 5: Mixed-action batch gets split', () => {
+    it('splits a single propose_batched_events with mixed actions into separate batch_proposal events', async () => {
+      const fixture = mixedBatchFixture.requests[0];
+      const { app, token } = createTestApp({
+        calendarEvents: mixedBatchFixture.calendar.events,
+        llmBeats: beats(fixture.llmBeats),
+      });
+
+      const res = await sendChat(app, token, fixture.messages);
+      expect(res.status).toBe(200);
+
+      const events = parseSSEStream(res.text);
+
+      // Should have 3 separate batch_proposal events (delete, create, update)
+      const batchProposals = events.filter((e) => e.event === 'batch_proposal');
+      expect(batchProposals).toHaveLength(3);
+
+      // Each batch should have homogeneous actions
+      for (const bp of batchProposals) {
+        const entries = (bp.data as { entries: Array<{ action: string }> }).entries;
+        const actions = new Set(entries.map((e) => e.action));
+        expect(actions.size).toBe(1);
+      }
+
+      // Verify counts per action
+      const allEntries = batchProposals.flatMap(
+        (bp) => (bp.data as { entries: Array<{ action: string }> }).entries,
+      );
+      const deletions = allEntries.filter((e) => e.action === 'delete');
+      const creates = allEntries.filter((e) => e.action === 'create');
+      const updates = allEntries.filter((e) => e.action === 'update');
+      expect(deletions).toHaveLength(2);
+      expect(creates).toHaveLength(2);
+      expect(updates).toHaveLength(1);
+
+      // Each batch has a unique batchId
+      const batchIds = batchProposals.map((bp) => (bp.data as { batchId: string }).batchId);
+      expect(new Set(batchIds).size).toBe(3);
     });
   });
 });

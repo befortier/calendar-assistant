@@ -300,6 +300,84 @@ describe('CalendarToolDispatcher: recurrence_scope validation', () => {
 });
 
 // ---------------------------------------------------------------------------
+// propose_batched_events — mixed action splitting
+// ---------------------------------------------------------------------------
+
+describe('CalendarToolDispatcher: propose_batched_events', () => {
+  it('emits a single batch_proposal when all entries share the same action', async () => {
+    const emit = vi.fn();
+    const dispatcher = makeCalendarToolDispatcher(makeService(), emit);
+
+    await dispatcher.dispatch('propose_batched_events', {
+      events: [
+        { action: 'delete', id: 'evt-1', title: 'Standup', start: START, end: END, attendees: [] },
+        { action: 'delete', id: 'evt-2', title: 'Retro', start: START, end: END, attendees: [] },
+      ],
+    });
+
+    const batchEvents = emit.mock.calls.filter(([e]) => e.event === 'batch_proposal');
+    expect(batchEvents).toHaveLength(1);
+    expect(batchEvents[0][0].data.entries).toHaveLength(2);
+    expect(batchEvents[0][0].data.entries.every((e: { action: string }) => e.action === 'delete')).toBe(true);
+  });
+
+  it('splits mixed-action batches into separate batch_proposal events per action', async () => {
+    const emit = vi.fn();
+    const dispatcher = makeCalendarToolDispatcher(makeService(), emit);
+
+    await dispatcher.dispatch('propose_batched_events', {
+      events: [
+        { action: 'delete', id: 'evt-1', title: 'Lunch Break', start: START, end: END, attendees: [] },
+        { action: 'delete', id: 'evt-2', title: 'Lunch Break', start: START, end: END, attendees: [] },
+        { action: 'create', id: '', title: 'Buffer Time', start: START, end: END, attendees: [] },
+        { action: 'update', id: 'evt-3', title: 'Working Lunch', start: START, end: END, attendees: [] },
+        { action: 'create', id: '', title: 'Focus Time', start: START, end: END, attendees: [] },
+      ],
+    });
+
+    const batchEvents = emit.mock.calls.filter(([e]) => e.event === 'batch_proposal');
+    expect(batchEvents).toHaveLength(3);
+
+    const actions = batchEvents.map(([e]) => e.data.entries[0].action);
+    expect(actions).toContain('delete');
+    expect(actions).toContain('create');
+    expect(actions).toContain('update');
+
+    const deleteBatch = batchEvents.find(([e]) => e.data.entries[0].action === 'delete');
+    expect(deleteBatch).toBeDefined();
+    expect(deleteBatch![0].data.entries).toHaveLength(2);
+
+    const createBatch = batchEvents.find(([e]) => e.data.entries[0].action === 'create');
+    expect(createBatch).toBeDefined();
+    expect(createBatch![0].data.entries).toHaveLength(2);
+
+    const updateBatch = batchEvents.find(([e]) => e.data.entries[0].action === 'update');
+    expect(updateBatch).toBeDefined();
+    expect(updateBatch![0].data.entries).toHaveLength(1);
+
+    // All entry IDs should be unique across the entire call
+    const allIds = batchEvents.flatMap(([e]) => e.data.entries.map((en: { id: string }) => en.id));
+    expect(new Set(allIds).size).toBe(allIds.length);
+  });
+
+  it('assigns unique batchIds to each split batch', async () => {
+    const emit = vi.fn();
+    const dispatcher = makeCalendarToolDispatcher(makeService(), emit);
+
+    await dispatcher.dispatch('propose_batched_events', {
+      events: [
+        { action: 'delete', id: 'evt-1', title: 'A', start: START, end: END, attendees: [] },
+        { action: 'create', id: '', title: 'B', start: START, end: END, attendees: [] },
+      ],
+    });
+
+    const batchEvents = emit.mock.calls.filter(([e]) => e.event === 'batch_proposal');
+    const batchIds = batchEvents.map(([e]) => e.data.batchId);
+    expect(new Set(batchIds).size).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // unknown tool
 // ---------------------------------------------------------------------------
 

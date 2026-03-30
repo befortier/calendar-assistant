@@ -1,0 +1,57 @@
+{
+  "description": "Agent proposes a mix of deletes, creates, and an update in one propose_batched_events call. Server should split into separate batch proposals per action type.",
+  "calendar": {
+    "events": [
+      {
+        "id": "evt-lunch-1",
+        "summary": "Lunch Break",
+        "start": { "dateTime": "2026-04-01T12:00:00-04:00" },
+        "end": { "dateTime": "2026-04-01T13:00:00-04:00" }
+      },
+      {
+        "id": "evt-lunch-2",
+        "summary": "Lunch Break",
+        "start": { "dateTime": "2026-04-02T12:00:00-04:00" },
+        "end": { "dateTime": "2026-04-02T13:00:00-04:00" }
+      },
+      {
+        "id": "evt-working-lunch",
+        "summary": "Working Lunch",
+        "start": { "dateTime": "2026-04-01T13:00:00-04:00" },
+        "end": { "dateTime": "2026-04-01T14:00:00-04:00" }
+      }
+    ]
+  },
+  "requests": [
+    {
+      "description": "Agent proposes mixed actions in a single propose_batched_events call",
+      "messages": [{ "role": "user", "content": "Delete the lunch breaks, add a buffer after the board meeting, and push working lunch to 1:30" }],
+      "llmBeats": [
+        {
+          "stopReason": "tool_use",
+          "text": "",
+          "toolCalls": [
+            {
+              "id": "tc-batch-mixed",
+              "name": "propose_batched_events",
+              "input": {
+                "events": [
+                  { "action": "delete", "id": "evt-lunch-1", "title": "Lunch Break", "start": "2026-04-01T12:00:00-04:00", "end": "2026-04-01T13:00:00-04:00", "attendees": [] },
+                  { "action": "delete", "id": "evt-lunch-2", "title": "Lunch Break", "start": "2026-04-02T12:00:00-04:00", "end": "2026-04-02T13:00:00-04:00", "attendees": [] },
+                  { "action": "create", "id": "", "title": "Buffer / Recovery Time", "start": "2026-04-01T13:00:00-04:00", "end": "2026-04-01T13:30:00-04:00", "attendees": [] },
+                  { "action": "update", "id": "evt-working-lunch", "title": "Working Lunch — Post-Board Debrief", "start": "2026-04-01T13:30:00-04:00", "end": "2026-04-01T14:30:00-04:00", "attendees": [] },
+                  { "action": "create", "id": "", "title": "Focus Time", "start": "2026-04-02T11:00:00-04:00", "end": "2026-04-02T12:00:00-04:00", "attendees": [] }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "stopReason": "end_turn",
+          "text": "I've proposed the changes in separate groups. Review and confirm each batch.",
+          "toolCalls": []
+        }
+      ]
+    }
+  ]
+}
