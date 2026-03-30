@@ -23,6 +23,7 @@ export class ScriptedProvider implements LLMProvider {
     _tools: ToolDefinition[],
     onDelta: (text: string) => void,
   ): Promise<StreamResult> {
+    await Promise.resolve();
     return this.doStream(onDelta);
   }
 
