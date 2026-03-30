@@ -344,13 +344,20 @@ describe('CalendarToolDispatcher: propose_batched_events', () => {
     expect(actions).toContain('update');
 
     const deleteBatch = batchEvents.find(([e]) => e.data.entries[0].action === 'delete');
+    expect(deleteBatch).toBeDefined();
     expect(deleteBatch![0].data.entries).toHaveLength(2);
 
     const createBatch = batchEvents.find(([e]) => e.data.entries[0].action === 'create');
+    expect(createBatch).toBeDefined();
     expect(createBatch![0].data.entries).toHaveLength(2);
 
     const updateBatch = batchEvents.find(([e]) => e.data.entries[0].action === 'update');
+    expect(updateBatch).toBeDefined();
     expect(updateBatch![0].data.entries).toHaveLength(1);
+
+    // All entry IDs should be unique across the entire call
+    const allIds = batchEvents.flatMap(([e]) => e.data.entries.map((en: { id: string }) => en.id));
+    expect(new Set(allIds).size).toBe(allIds.length);
   });
 
   it('assigns unique batchIds to each split batch', async () => {

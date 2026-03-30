@@ -188,8 +188,9 @@ function handleProposeEvent(input: Record<string, unknown>, emit: SSEEmitter): P
 
 function handleProposeBatchedEvents(input: Record<string, unknown>, emit: SSEEmitter): Promise<string> {
   const rawEvents = Array.isArray(input.events) ? (input.events as Record<string, unknown>[]) : [];
+  const callId = crypto.randomUUID();
   const entries: BatchProposalEntry[] = rawEvents.map((e, i) => ({
-    id: `batch-${i}`,
+    id: `${callId}-${i}`,
     action: toAction(e),
     event: toCalendarEvent(e),
   }));
