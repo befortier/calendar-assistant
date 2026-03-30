@@ -5,7 +5,7 @@ import type { ProposalMetadata, BatchProposalMetadata } from '../types/chat';
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
 export async function streamChat(
-  messages: { role: string; content: string; metadata?: ProposalMetadata | BatchProposalMetadata }[],
+  messages: { role: 'user' | 'assistant'; content: string; metadata?: ProposalMetadata | BatchProposalMetadata }[],
   timezone: string,
   calendarId: string,
   calendarName: string | undefined,

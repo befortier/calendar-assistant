@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { createChatRouter, type ChatRouterDeps } from './chat';
-import type { User } from '../db/user-repository';
+import { requireUser } from '../middleware/requireUser';
+import type { IUserRepository, User } from '../db/user-repository';
 import type { LLMProvider } from '../services/agent/types';
 import type { GoogleCalendarService } from '../services/tools/calendar/google';
 
@@ -16,10 +17,6 @@ const FAKE_USER: User = {
 
 function makeDeps(overrides?: Partial<ChatRouterDeps>): ChatRouterDeps {
   return {
-    users: {
-      upsertUser: vi.fn(),
-      getUserById: vi.fn().mockReturnValue(FAKE_USER),
-    },
     preferences: {
       getPreferences: vi.fn().mockReturnValue(''),
       setPreferences: vi.fn(),
@@ -32,14 +29,21 @@ function makeDeps(overrides?: Partial<ChatRouterDeps>): ChatRouterDeps {
   };
 }
 
-function makeApp(deps: ChatRouterDeps) {
+function makeUserRepo(user: User | null = FAKE_USER): IUserRepository {
+  return { upsertUser: vi.fn(), getUserById: vi.fn().mockReturnValue(user) };
+}
+
+function makeApp(deps: ChatRouterDeps, userRepo: IUserRepository = makeUserRepo()) {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
-    (req as unknown as { userId?: string }).userId = 'user-1';
+    req.userId = 'user-1';
     next();
   });
-  app.use('/chat', createChatRouter(deps));
+  app.use('/chat', requireUser(userRepo), createChatRouter(deps));
+  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    res.status(500).json({ error: err.message });
+  });
   return app;
 }
 
@@ -89,7 +93,7 @@ describe('POST /chat', () => {
   it('returns 401 when userId is missing from request', async () => {
     const noAuthApp = express();
     noAuthApp.use(express.json());
-    noAuthApp.use('/chat', createChatRouter(deps));
+    noAuthApp.use('/chat', requireUser(makeUserRepo()), createChatRouter(deps));
 
     const res = await request(noAuthApp)
       .post('/chat')
@@ -100,10 +104,7 @@ describe('POST /chat', () => {
   });
 
   it('returns 401 when user is not found in DB', async () => {
-    const notFoundDeps = makeDeps({
-      users: { upsertUser: vi.fn(), getUserById: vi.fn().mockReturnValue(null) },
-    });
-    app = makeApp(notFoundDeps);
+    app = makeApp(deps, makeUserRepo(null));
 
     const res = await request(app)
       .post('/chat')
@@ -114,13 +115,7 @@ describe('POST /chat', () => {
   });
 
   it('returns 401 when user has no refresh token', async () => {
-    const noRefreshDeps = makeDeps({
-      users: {
-        upsertUser: vi.fn(),
-        getUserById: vi.fn().mockReturnValue({ ...FAKE_USER, refreshToken: null }),
-      },
-    });
-    app = makeApp(noRefreshDeps);
+    app = makeApp(deps, makeUserRepo({ ...FAKE_USER, refreshToken: null }));
 
     const res = await request(app)
       .post('/chat')

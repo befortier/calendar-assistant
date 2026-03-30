@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import type { IUserRepository } from '../db/user-repository';
 import type { IPreferencesRepository } from '../db/preferences-repository';
+import { asyncHandler } from '../middleware/asyncHandler';
+import { getAuthenticatedUser } from '../middleware/requireUser';
 import { runAgentLoop } from '../services/agent/agentLoop';
 import { calendarTools } from '../services/tools/calendar/tools';
 import { buildSystemPrompt } from '../services/agent/systemPrompt';
@@ -12,7 +13,6 @@ import type { LLMProvider, ChatMessage } from '../services/agent/types';
 import type { CalendarServiceFactory, GoogleCalendarService } from '../services/tools/calendar/google';
 
 export interface ChatRouterDeps {
-  users: IUserRepository;
   preferences: IPreferencesRepository;
   provider: LLMProvider;
   calendarServiceFactory: CalendarServiceFactory;
@@ -54,23 +54,8 @@ function makeDispatchTool(
 export function createChatRouter(deps: ChatRouterDeps): Router {
   const router = Router();
 
-  router.post('/', async (req, res) => {
-    const userId = (req as unknown as { userId?: string }).userId;
-    if (!userId) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
-    const user = deps.users.getUserById(userId);
-    if (!user) {
-      res.status(401).json({ error: 'User not found' });
-      return;
-    }
-
-    if (!user.refreshToken) {
-      res.status(401).json({ error: 'Google session expired — please reauthorize' });
-      return;
-    }
+  router.post('/', asyncHandler(async (req, res) => {
+    const user = getAuthenticatedUser(req);
 
     const parsed = ChatRequestSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -100,12 +85,12 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
         {
           provider: deps.provider,
           tools: calendarTools,
-          dispatchTool: makeDispatchTool(deps.preferences, userId, calendarService, parsed.data.timezone, emit),
+          dispatchTool: makeDispatchTool(deps.preferences, user.id, calendarService, parsed.data.timezone, emit),
           buildSystemPrompt: () =>
             buildSystemPrompt({
               email: user.email,
               timezone: parsed.data.timezone,
-              preferences: deps.preferences.getPreferences(userId),
+              preferences: deps.preferences.getPreferences(user.id),
               calendarId: parsed.data.calendarId,
               calendarName: parsed.data.calendarName,
             }),
@@ -118,7 +103,7 @@ export function createChatRouter(deps: ChatRouterDeps): Router {
     } finally {
       res.end();
     }
-  });
+  }));
 
   return router;
 }
