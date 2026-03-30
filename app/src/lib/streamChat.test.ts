@@ -39,18 +39,15 @@ function makeStreamResponse(chunks: string[]): Response {
 }
 
 describe('streamChat', () => {
-  const baseArgs = [
-    [{ role: 'user', content: 'hi' }],
-    'America/New_York',
-    'primary',
-    undefined,
-  ] as const;
+  const msgs = [{ role: 'user', content: 'hi' }];
+  const tz = 'America/New_York';
+  const calId = 'primary';
 
   it('calls logout and returns early when no token', async () => {
     mockGetState.mockReturnValue({ token: null, login: vi.fn(), logout: mockLogout });
     const onEvent = vi.fn();
 
-    await streamChat(...baseArgs, onEvent);
+    await streamChat(msgs, tz, calId, undefined, onEvent);
 
     expect(mockLogout).toHaveBeenCalled();
     expect(onEvent).not.toHaveBeenCalled();
@@ -60,7 +57,7 @@ describe('streamChat', () => {
     vi.mocked(fetch).mockResolvedValue({ ok: false, status: 401, body: null } as Response);
     const onEvent = vi.fn();
 
-    await streamChat(...baseArgs, onEvent);
+    await streamChat(msgs, tz, calId, undefined, onEvent);
 
     expect(mockLogout).toHaveBeenCalled();
     expect(onEvent).not.toHaveBeenCalled();
@@ -70,7 +67,7 @@ describe('streamChat', () => {
     vi.mocked(fetch).mockResolvedValue({ ok: false, status: 500, body: null } as Response);
     const onEvent = vi.fn();
 
-    await streamChat(...baseArgs, onEvent);
+    await streamChat(msgs, tz, calId, undefined, onEvent);
 
     expect(onEvent).toHaveBeenCalledWith({ event: 'error', data: { message: 'Failed to connect to chat' } });
     expect(onEvent).toHaveBeenCalledWith({ event: 'done', data: {} });
@@ -81,7 +78,7 @@ describe('streamChat', () => {
     vi.mocked(fetch).mockResolvedValue(makeStreamResponse([chunk]));
 
     const events: SSEEvent[] = [];
-    await streamChat(...baseArgs, (e) => events.push(e));
+    await streamChat(msgs, tz, calId, undefined, (e) => events.push(e));
 
     expect(events).toHaveLength(2);
     expect(events[0]).toEqual({ event: 'delta', data: { text: 'hello' } });
@@ -89,13 +86,12 @@ describe('streamChat', () => {
   });
 
   it('handles chunked data across multiple reads', async () => {
-    // First chunk ends mid-block, second completes it
     const chunk1 = 'event: delta\ndata: {"text":"a"}\n\nevent: del';
     const chunk2 = 'ta\ndata: {"text":"b"}\n\n';
     vi.mocked(fetch).mockResolvedValue(makeStreamResponse([chunk1, chunk2]));
 
     const events: SSEEvent[] = [];
-    await streamChat(...baseArgs, (e) => events.push(e));
+    await streamChat(msgs, tz, calId, undefined, (e) => events.push(e));
 
     expect(events).toHaveLength(2);
     expect(events[0]).toEqual({ event: 'delta', data: { text: 'a' } });
