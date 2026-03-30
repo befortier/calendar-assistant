@@ -121,6 +121,7 @@ export class GoogleCalendarService {
   }
 
   async updateEvent(eventId: string, updates: UpdateEventInput, scope?: RecurrenceScope): Promise<CalendarEvent> {
+    // Use patch (not events.update) so only provided fields are sent — unspecified fields remain unchanged
     const requestBody: calendar_v3.Schema$Event = {};
     if (updates.title       !== undefined) requestBody.summary     = updates.title;
     if (updates.start       !== undefined) requestBody.start       = updates.allDay ? { date: updates.start } : { dateTime: updates.start };
@@ -134,6 +135,8 @@ export class GoogleCalendarService {
       throw new Error(`updateEvent: this_and_following requires an instance event ID (got '${eventId}')`);
     }
 
+    // 'all' and 'this_and_following' both target the master event (series-level patch).
+    // 'this' or no scope targets the instance ID directly.
     const targetId = (scope === 'all' || scope === 'this_and_following')
       ? this.deps.stripRecurrenceSuffix(eventId)
       : eventId;
@@ -163,6 +166,7 @@ export class GoogleCalendarService {
       return;
     }
 
+    // 'this' or no scope: delete the instance (or single event) as-is
     await this.calendar.events.delete({ calendarId: this.calendarId, eventId });
   }
 }
