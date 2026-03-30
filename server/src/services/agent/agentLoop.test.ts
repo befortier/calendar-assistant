@@ -49,7 +49,7 @@ function makeDispatchToolWithEmitter(
   otherDispatch: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue('ok'),
 ): { dispatchTool: (name: string, input: Record<string, unknown>) => Promise<string>; otherDispatch: ReturnType<typeof vi.fn> } {
   const stubService = {} as GoogleCalendarService;
-  const dispatcher = makeCalendarToolDispatcher(stubService, undefined, emit);
+  const dispatcher = makeCalendarToolDispatcher(stubService, emit);
   const dispatchTool = async (name: string, input: Record<string, unknown>): Promise<string> => {
     if (name === 'propose_event' || name === 'propose_batched_events') {
       return dispatcher.dispatch(name, input);

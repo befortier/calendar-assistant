@@ -1,4 +1,4 @@
-import type { LLMProvider, ChatMessage, ToolDefinition } from './types';
+import type { LLMProvider, ChatMessage, ToolDefinition, ToolCall } from './types';
 import { StopReason } from './types';
 import type { SSEEmitter } from '../sse';
 import { SSEEventType } from '../sse';
@@ -80,7 +80,7 @@ function handleIncompleteResponse(messages: ChatMessage[], text: string): void {
 }
 
 async function dispatchAll(
-  toolCalls: import('./types').ToolCall[],
+  toolCalls: ToolCall[],
   dispatch: (name: string, input: Record<string, unknown>) => Promise<string>,
   emit: SSEEmitter,
 ): Promise<ChatMessage[]> {

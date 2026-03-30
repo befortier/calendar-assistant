@@ -22,10 +22,10 @@ export interface CalendarToolDispatcher {
  */
 export function makeCalendarToolDispatcher(
   service: GoogleCalendarService,
-  userTimeZone?: string,
   emit: SSEEmitter,
+  userTimeZone?: string,
 ): CalendarToolDispatcher {
-  return { dispatch: (name, input) => dispatchTool(name, input, service, userTimeZone, emit) };
+  return { dispatch: (name, input) => dispatchTool(name, input, service, emit, userTimeZone) };
 }
 
 // ---------------------------------------------------------------------------
@@ -36,8 +36,8 @@ async function dispatchTool(
   name: string,
   input: Record<string, unknown>,
   service: GoogleCalendarService,
-  userTimeZone?: string,
   emit: SSEEmitter,
+  userTimeZone?: string,
 ): Promise<string> {
   switch (name) {
     case 'get_events':              return handleGetEvents(input, service);

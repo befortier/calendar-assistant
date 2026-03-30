@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { makeCalendarToolDispatcher } from './dispatcher';
 import type { GoogleCalendarService } from '../../googleCalendar';
+import type { SSEEmitter } from '../../sse';
+
+const noopEmit: SSEEmitter = vi.fn();
 
 const START = '2026-03-22T00:00:00.000Z';
 const END = '2026-03-22T23:59:59.000Z';
@@ -25,7 +28,7 @@ describe('CalendarToolDispatcher: get_events', () => {
     const mockGetEvents = vi.fn().mockResolvedValue([
       { id: 'e1', title: 'Standup', start: '2026-03-22T09:00:00Z', end: '2026-03-22T09:30:00Z', allDay: false },
     ]);
-    const dispatcher = makeCalendarToolDispatcher(makeService({ getEvents: mockGetEvents }));
+    const dispatcher = makeCalendarToolDispatcher(makeService({ getEvents: mockGetEvents }), noopEmit);
 
     const result = await dispatcher.dispatch('get_events', { start: START, end: END });
 
@@ -45,7 +48,7 @@ describe('CalendarToolDispatcher: get_freebusy', () => {
     const mockGetFreeBusy = vi.fn().mockResolvedValue({
       'a@x.com': { accessible: true, status: 'ok', busy: [] },
     });
-    const dispatcher = makeCalendarToolDispatcher(makeService({ getFreeBusy: mockGetFreeBusy }));
+    const dispatcher = makeCalendarToolDispatcher(makeService({ getFreeBusy: mockGetFreeBusy }), noopEmit);
 
     await dispatcher.dispatch('get_freebusy', { emails: ['a@x.com'], start: START, end: END });
 
@@ -60,7 +63,7 @@ describe('CalendarToolDispatcher: get_freebusy', () => {
         busy: [{ start: '2026-03-22T09:00:00Z', end: '2026-03-22T10:00:00Z' }],
       },
     });
-    const dispatcher = makeCalendarToolDispatcher(makeService({ getFreeBusy: mockGetFreeBusy }));
+    const dispatcher = makeCalendarToolDispatcher(makeService({ getFreeBusy: mockGetFreeBusy }), noopEmit);
 
     const result = JSON.parse(
       await dispatcher.dispatch('get_freebusy', { emails: ['a@x.com'], start: START, end: END }),
@@ -79,7 +82,7 @@ describe('CalendarToolDispatcher: get_freebusy', () => {
         errors: [{ domain: 'global', reason: 'notFound' }],
       },
     });
-    const dispatcher = makeCalendarToolDispatcher(makeService({ getFreeBusy: mockGetFreeBusy }));
+    const dispatcher = makeCalendarToolDispatcher(makeService({ getFreeBusy: mockGetFreeBusy }), noopEmit);
 
     const result = JSON.parse(
       await dispatcher.dispatch('get_freebusy', { emails: ['private@x.com'], start: START, end: END }),
@@ -102,7 +105,7 @@ describe('CalendarToolDispatcher: create_event', () => {
       end: '2026-03-22T10:30:00Z',
       allDay: false,
     });
-    const dispatcher = makeCalendarToolDispatcher(makeService({ createEvent: mockCreate }));
+    const dispatcher = makeCalendarToolDispatcher(makeService({ createEvent: mockCreate }), noopEmit);
 
     const result = await dispatcher.dispatch('create_event', {
       title: 'Team sync',
@@ -124,7 +127,7 @@ describe('CalendarToolDispatcher: create_event', () => {
       start: '2026-03-22T10:00:00Z', end: '2026-03-22T10:30:00Z', allDay: false,
       recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO'],
     });
-    const dispatcher = makeCalendarToolDispatcher(makeService({ createEvent: mockCreate }));
+    const dispatcher = makeCalendarToolDispatcher(makeService({ createEvent: mockCreate }), noopEmit);
 
     await dispatcher.dispatch('create_event', {
       title: 'Weekly sync',
@@ -143,7 +146,7 @@ describe('CalendarToolDispatcher: create_event', () => {
       id: 'rem-evt', title: 'Team sync',
       start: '2026-03-22T10:00:00Z', end: '2026-03-22T10:30:00Z', allDay: false,
     });
-    const dispatcher = makeCalendarToolDispatcher(makeService({ createEvent: mockCreate }));
+    const dispatcher = makeCalendarToolDispatcher(makeService({ createEvent: mockCreate }), noopEmit);
 
     await dispatcher.dispatch('create_event', {
       title: 'Team sync',
@@ -162,7 +165,7 @@ describe('CalendarToolDispatcher: create_event', () => {
       id: 'allday-evt', title: 'Company holiday',
       start: '2026-03-22', end: '2026-03-23', allDay: true,
     });
-    const dispatcher = makeCalendarToolDispatcher(makeService({ createEvent: mockCreate }));
+    const dispatcher = makeCalendarToolDispatcher(makeService({ createEvent: mockCreate }), noopEmit);
 
     await dispatcher.dispatch('create_event', {
       title: 'Company holiday',
@@ -185,7 +188,7 @@ describe('CalendarToolDispatcher: update_event', () => {
       id: 'evt-123', title: 'New title',
       start: '2026-03-22T10:00:00Z', end: '2026-03-22T10:30:00Z', allDay: false,
     });
-    const dispatcher = makeCalendarToolDispatcher(makeService({ updateEvent: mockUpdate }));
+    const dispatcher = makeCalendarToolDispatcher(makeService({ updateEvent: mockUpdate }), noopEmit);
 
     const result = await dispatcher.dispatch('update_event', { id: 'evt-123', title: 'New title' });
 
@@ -201,7 +204,7 @@ describe('CalendarToolDispatcher: update_event', () => {
 describe('CalendarToolDispatcher: delete_event', () => {
   it('calls service.deleteEvent with id and returns success', async () => {
     const mockDelete = vi.fn().mockResolvedValue(undefined);
-    const dispatcher = makeCalendarToolDispatcher(makeService({ deleteEvent: mockDelete }));
+    const dispatcher = makeCalendarToolDispatcher(makeService({ deleteEvent: mockDelete }), noopEmit);
 
     const result = await dispatcher.dispatch('delete_event', { id: 'evt-abc' });
 
@@ -216,7 +219,7 @@ describe('CalendarToolDispatcher: delete_event', () => {
 
 describe('CalendarToolDispatcher: update_event with recurrence_scope', () => {
   it("throws when recurrence_scope is 'this_and_following' (not supported for updates)", async () => {
-    const dispatcher = makeCalendarToolDispatcher(makeService());
+    const dispatcher = makeCalendarToolDispatcher(makeService(), noopEmit);
 
     await expect(
       dispatcher.dispatch('update_event', { id: 'master_20260322T090000Z', recurrence_scope: 'this_and_following' }),
@@ -228,7 +231,7 @@ describe('CalendarToolDispatcher: update_event with recurrence_scope', () => {
       id: 'master_20260322T090000Z', title: 'Updated',
       start: '2026-03-22T09:00:00Z', end: '2026-03-22T09:30:00Z', allDay: false,
     });
-    const dispatcher = makeCalendarToolDispatcher(makeService({ updateEvent: mockUpdate }));
+    const dispatcher = makeCalendarToolDispatcher(makeService({ updateEvent: mockUpdate }), noopEmit);
 
     await dispatcher.dispatch('update_event', {
       id: 'master_20260322T090000Z', title: 'Updated', recurrence_scope: 'this',
@@ -242,7 +245,7 @@ describe('CalendarToolDispatcher: update_event with recurrence_scope', () => {
       id: 'evt-123', title: 'New title',
       start: '2026-03-22T10:00:00Z', end: '2026-03-22T10:30:00Z', allDay: false,
     });
-    const dispatcher = makeCalendarToolDispatcher(makeService({ updateEvent: mockUpdate }));
+    const dispatcher = makeCalendarToolDispatcher(makeService({ updateEvent: mockUpdate }), noopEmit);
 
     await dispatcher.dispatch('update_event', { id: 'evt-123', title: 'New title' });
 
@@ -257,7 +260,7 @@ describe('CalendarToolDispatcher: update_event with recurrence_scope', () => {
 describe('CalendarToolDispatcher: delete_event with recurrence_scope', () => {
   it('passes recurrence_scope to service.deleteEvent', async () => {
     const mockDelete = vi.fn().mockResolvedValue(undefined);
-    const dispatcher = makeCalendarToolDispatcher(makeService({ deleteEvent: mockDelete }));
+    const dispatcher = makeCalendarToolDispatcher(makeService({ deleteEvent: mockDelete }), noopEmit);
 
     await dispatcher.dispatch('delete_event', { id: 'master_20260322T090000Z', recurrence_scope: 'all' });
 
@@ -266,7 +269,7 @@ describe('CalendarToolDispatcher: delete_event with recurrence_scope', () => {
 
   it('passes undefined scope when recurrence_scope is absent', async () => {
     const mockDelete = vi.fn().mockResolvedValue(undefined);
-    const dispatcher = makeCalendarToolDispatcher(makeService({ deleteEvent: mockDelete }));
+    const dispatcher = makeCalendarToolDispatcher(makeService({ deleteEvent: mockDelete }), noopEmit);
 
     await dispatcher.dispatch('delete_event', { id: 'evt-abc' });
 
@@ -280,7 +283,7 @@ describe('CalendarToolDispatcher: delete_event with recurrence_scope', () => {
 
 describe('CalendarToolDispatcher: recurrence_scope validation', () => {
   it('throws when update_event has an invalid recurrence_scope value', async () => {
-    const dispatcher = makeCalendarToolDispatcher(makeService());
+    const dispatcher = makeCalendarToolDispatcher(makeService(), noopEmit);
 
     await expect(
       dispatcher.dispatch('update_event', { id: 'evt-123', recurrence_scope: 'allEvents' }),
@@ -288,7 +291,7 @@ describe('CalendarToolDispatcher: recurrence_scope validation', () => {
   });
 
   it('throws when delete_event has an invalid recurrence_scope value', async () => {
-    const dispatcher = makeCalendarToolDispatcher(makeService());
+    const dispatcher = makeCalendarToolDispatcher(makeService(), noopEmit);
 
     await expect(
       dispatcher.dispatch('delete_event', { id: 'evt-abc', recurrence_scope: 'series' }),
@@ -302,7 +305,7 @@ describe('CalendarToolDispatcher: recurrence_scope validation', () => {
 
 describe('CalendarToolDispatcher: unknown tool', () => {
   it('throws for an unrecognised tool name', async () => {
-    const dispatcher = makeCalendarToolDispatcher(makeService());
+    const dispatcher = makeCalendarToolDispatcher(makeService(), noopEmit);
 
     await expect(dispatcher.dispatch('nonexistent', {})).rejects.toThrow('Unknown tool: nonexistent');
   });
@@ -314,7 +317,7 @@ describe('CalendarToolDispatcher: unknown tool', () => {
 
 describe('CalendarToolDispatcher: input validation', () => {
   it('throws when a required string field is missing', async () => {
-    const dispatcher = makeCalendarToolDispatcher(makeService());
+    const dispatcher = makeCalendarToolDispatcher(makeService(), noopEmit);
 
     await expect(dispatcher.dispatch('get_events', { start: START })).rejects.toThrow(
       "expected string for 'end'",
@@ -322,7 +325,7 @@ describe('CalendarToolDispatcher: input validation', () => {
   });
 
   it('throws when a required string field is a number', async () => {
-    const dispatcher = makeCalendarToolDispatcher(makeService());
+    const dispatcher = makeCalendarToolDispatcher(makeService(), noopEmit);
 
     await expect(dispatcher.dispatch('get_events', { start: START, end: 12345 })).rejects.toThrow(
       "expected string for 'end'",
@@ -330,7 +333,7 @@ describe('CalendarToolDispatcher: input validation', () => {
   });
 
   it('throws when emails is not a string array', async () => {
-    const dispatcher = makeCalendarToolDispatcher(makeService());
+    const dispatcher = makeCalendarToolDispatcher(makeService(), noopEmit);
 
     await expect(
       dispatcher.dispatch('get_freebusy', { emails: 'not-an-array', start: START, end: END }),
@@ -338,7 +341,7 @@ describe('CalendarToolDispatcher: input validation', () => {
   });
 
   it('throws when a date string is not valid ISO 8601', async () => {
-    const dispatcher = makeCalendarToolDispatcher(makeService());
+    const dispatcher = makeCalendarToolDispatcher(makeService(), noopEmit);
 
     await expect(
       dispatcher.dispatch('get_events', { start: 'not-a-date', end: END }),
@@ -346,7 +349,7 @@ describe('CalendarToolDispatcher: input validation', () => {
   });
 
   it('throws when create_event is missing title', async () => {
-    const dispatcher = makeCalendarToolDispatcher(makeService());
+    const dispatcher = makeCalendarToolDispatcher(makeService(), noopEmit);
 
     await expect(
       dispatcher.dispatch('create_event', { start: START, end: END }),
@@ -354,7 +357,7 @@ describe('CalendarToolDispatcher: input validation', () => {
   });
 
   it('throws when delete_event is missing id', async () => {
-    const dispatcher = makeCalendarToolDispatcher(makeService());
+    const dispatcher = makeCalendarToolDispatcher(makeService(), noopEmit);
 
     await expect(dispatcher.dispatch('delete_event', {})).rejects.toThrow(
       "expected string for 'id'",

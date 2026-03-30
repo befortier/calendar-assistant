@@ -40,7 +40,7 @@ function makeDispatchTool(
   timezone: string,
   emit: SSEEmitter,
 ) {
-  const calendarDispatcher = makeCalendarToolDispatcher(calendarService, timezone, emit);
+  const calendarDispatcher = makeCalendarToolDispatcher(calendarService, emit, timezone);
   return (name: string, input: Record<string, unknown>): Promise<string> => {
     if (name === 'update_preferences') {
       const content = typeof input.content === 'string' ? input.content : '';
