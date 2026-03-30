@@ -17,13 +17,13 @@ export class ScriptedProvider implements LLMProvider {
     return this.callIndex;
   }
 
-  stream(
+  async stream(
     _system: string,
     _messages: ChatMessage[],
     _tools: ToolDefinition[],
     onDelta: (text: string) => void,
   ): Promise<StreamResult> {
-    return Promise.resolve(this.doStream(onDelta));
+    return this.doStream(onDelta);
   }
 
   private doStream(onDelta: (text: string) => void): StreamResult {

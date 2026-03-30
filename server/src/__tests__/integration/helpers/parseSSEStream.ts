@@ -38,6 +38,6 @@ export function eventSequence(events: SSEEvent[]): string[] {
 export function collectDeltaText(events: SSEEvent[]): string {
   return events
     .filter((e) => e.event === 'delta')
-    .map((e) => (e.data as { text: string }).text)
+    .map((e) => (e.data as { text?: string }).text ?? '')
     .join('');
 }

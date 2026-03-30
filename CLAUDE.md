@@ -35,7 +35,7 @@ Before merging any PR, run in order:
 1. `npm run test:unit --workspace=server` — all unit tests pass locally
 2. `npm run test:integration --workspace=server` — all integration tests pass locally
 3. `gh pr checks <number>` — CI green (unit + integration reported separately)
-3. `gh pr view <number> --comments` — review latest Claude feedback and address any valid findings
+4. `gh pr view <number> --comments` — review latest Claude feedback and address any valid findings
 
 Only propose merging after all three pass.
 
