@@ -3,6 +3,7 @@ import { GoogleCalendarService } from './service';
 import type { GoogleCalendarDeps } from './service';
 import type { calendar_v3 } from 'googleapis';
 import type { CalendarEvent } from './types';
+import { normalizeEvent } from './mappers';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -389,5 +390,28 @@ describe('GoogleCalendarService.deleteEvent', () => {
     await expect(service.deleteEvent('masteronly', 'this_and_following')).rejects.toThrow(
       'this_and_following requires an instance event ID',
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// defaultDeps wiring — verifies the service works without explicit deps
+// ---------------------------------------------------------------------------
+
+describe('GoogleCalendarService with defaultDeps', () => {
+  it('uses real normalizeEvent when no deps are provided', async () => {
+    const rawEvent: calendar_v3.Schema$Event = {
+      id: 'evt-1',
+      summary: 'Real event',
+      start: { dateTime: '2026-03-22T09:00:00Z' },
+      end: { dateTime: '2026-03-22T09:30:00Z' },
+    };
+    const mockList = vi.fn().mockResolvedValue({ data: { items: [rawEvent] } });
+    const service = new GoogleCalendarService(makeCalendar({ list: mockList }));
+
+    const events = await service.getEvents(new Date('2026-03-22T00:00:00Z'), new Date('2026-03-22T23:59:59Z'));
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual(normalizeEvent(rawEvent));
+    expect(events[0].title).toBe('Real event');
   });
 });

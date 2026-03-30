@@ -14,5 +14,5 @@ export type {
   RecurrenceScope,
 } from './types';
 
-export { GoogleCalendarService, type GoogleCalendarDeps } from './service';
+export { GoogleCalendarService } from './service';
 export { createGoogleCalendarService, type CalendarServiceFactory } from './factory';
