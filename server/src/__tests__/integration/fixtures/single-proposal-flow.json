@@ -29,7 +29,7 @@
           "toolCalls": []
         }
       ],
-      "expectedEvents": ["status", "delta", "event_proposal", "done"]
+      "expectedEvents": ["status", "tool_call", "event_proposal", "tool_result", "status", "delta", "done"]
     },
     {
       "description": "Request 2: User accepts, agent creates the event",

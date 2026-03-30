@@ -61,7 +61,7 @@
           "toolCalls": []
         }
       ],
-      "expectedEvents": ["status", "tool_call", "tool_result", "status", "delta", "batch_proposal", "done"]
+      "expectedEvents": ["status", "tool_call", "tool_result", "status", "tool_call", "batch_proposal", "tool_result", "status", "delta", "done"]
     },
     {
       "description": "Request 2: User accepts 2 of 3 (removed Retro), agent deletes them",
