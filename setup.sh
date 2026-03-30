@@ -47,16 +47,17 @@ prompt_var() {
   local var_name="$1"
   local description="$2"
   local default="${3:-}"
+  local is_secret="${4:-false}"
   local value=""
 
   if [ -n "$default" ]; then
     echo -ne "${CYAN}${var_name}${NC} (${description}) [${default}]: "
-    read -r value
+    if [ "$is_secret" = "true" ]; then read -rs value; echo ""; else read -r value; fi
     value="${value:-$default}"
   else
     while [ -z "$value" ]; do
       echo -ne "${CYAN}${var_name}${NC} (${description}): "
-      read -r value
+      if [ "$is_secret" = "true" ]; then read -rs value; echo ""; else read -r value; fi
       if [ -z "$value" ]; then
         warn "Required — cannot be empty"
       fi
@@ -65,9 +66,9 @@ prompt_var() {
   echo "$value"
 }
 
-GOOGLE_CLIENT_ID=$(prompt_var "GOOGLE_CLIENT_ID" "Google OAuth client ID")
-GOOGLE_CLIENT_SECRET=$(prompt_var "GOOGLE_CLIENT_SECRET" "Google OAuth client secret")
-ANTHROPIC_API_KEY=$(prompt_var "ANTHROPIC_API_KEY" "Anthropic API key")
+GOOGLE_CLIENT_ID=$(prompt_var "GOOGLE_CLIENT_ID" "Google OAuth client ID" "" false)
+GOOGLE_CLIENT_SECRET=$(prompt_var "GOOGLE_CLIENT_SECRET" "Google OAuth client secret" "" true)
+ANTHROPIC_API_KEY=$(prompt_var "ANTHROPIC_API_KEY" "Anthropic API key" "" true)
 JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
 TOKEN_ENCRYPTION_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
 
