@@ -74,8 +74,11 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     }
 
     case 'ADD_PROPOSAL': {
+      // Only dedupe against live (pending) proposals — declined/accepted ones
+      // shouldn't block a fresh re-propose of the same event.
       const duplicate = state.items.some(
         (i) => i.type === 'event_proposal' &&
+          i.status === 'pending' &&
           i.event.start === action.proposal.event.start &&
           i.event.end === action.proposal.event.end &&
           i.event.title === action.proposal.event.title &&
@@ -93,8 +96,13 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
             .map((e) => `${e.action}|${e.event.title}|${e.event.start}|${e.event.end}`)
             .sort(),
         );
+      // Only dedupe against batches that are still actionable — skip ones that
+      // are declined/accepted or have had every entry removed by the user.
       const duplicate = state.items.some(
-        (i) => i.type === 'batch_proposal' && fingerprint(i) === fingerprint(action.proposal),
+        (i) => i.type === 'batch_proposal' &&
+          i.status === 'pending' &&
+          i.removedIds.length < i.entries.length &&
+          fingerprint(i) === fingerprint(action.proposal),
       );
       if (duplicate) return state;
       return { ...state, items: [...state.items, action.proposal] };

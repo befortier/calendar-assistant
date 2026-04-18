@@ -103,6 +103,49 @@ describe('chatReducer', () => {
     expect(state.items[0]).toBe(bp);
   });
 
+  it('ADD_PROPOSAL dedupes against a pending identical proposal', () => {
+    const p = proposal();
+    const base: ChatState = { ...initialState, items: [p] };
+    const state = chatReducer(base, { type: 'ADD_PROPOSAL', proposal: { ...p, id: 'p-2' } });
+    expect(state.items).toHaveLength(1);
+    expect(state.items[0]).toBe(p);
+  });
+
+  it('ADD_PROPOSAL allows a re-propose after the prior one was declined', () => {
+    const declined = proposal({ status: 'declined' });
+    const base: ChatState = { ...initialState, items: [declined] };
+    const fresh = proposal({ id: 'p-2' });
+    const state = chatReducer(base, { type: 'ADD_PROPOSAL', proposal: fresh });
+    expect(state.items).toHaveLength(2);
+    expect(state.items[1]).toBe(fresh);
+  });
+
+  it('ADD_BATCH_PROPOSAL dedupes against a pending batch with the same entries', () => {
+    const bp = batchProposal();
+    const base: ChatState = { ...initialState, items: [bp] };
+    const state = chatReducer(base, { type: 'ADD_BATCH_PROPOSAL', proposal: { ...bp, id: 'b-2' } });
+    expect(state.items).toHaveLength(1);
+    expect(state.items[0]).toBe(bp);
+  });
+
+  it('ADD_BATCH_PROPOSAL allows a re-propose after every entry was removed by the user', () => {
+    const emptied: BatchProposalItem = { ...batchProposal(), removedIds: ['evt-1'] };
+    const base: ChatState = { ...initialState, items: [emptied] };
+    const fresh: BatchProposalItem = { ...batchProposal(), id: 'b-2' };
+    const state = chatReducer(base, { type: 'ADD_BATCH_PROPOSAL', proposal: fresh });
+    expect(state.items).toHaveLength(2);
+    expect(state.items[1]).toBe(fresh);
+  });
+
+  it('ADD_BATCH_PROPOSAL allows a re-propose after the prior batch was declined', () => {
+    const declined: BatchProposalItem = { ...batchProposal(), status: 'declined' };
+    const base: ChatState = { ...initialState, items: [declined] };
+    const fresh: BatchProposalItem = { ...batchProposal(), id: 'b-2' };
+    const state = chatReducer(base, { type: 'ADD_BATCH_PROPOSAL', proposal: fresh });
+    expect(state.items).toHaveLength(2);
+    expect(state.items[1]).toBe(fresh);
+  });
+
   it('REMOVE_FROM_BATCH adds eventId to removedIds', () => {
     const base: ChatState = { ...initialState, items: [batchProposal()] };
     const state = chatReducer(base, { type: 'REMOVE_FROM_BATCH', batchId: 'b-1', eventId: 'evt-1' });
