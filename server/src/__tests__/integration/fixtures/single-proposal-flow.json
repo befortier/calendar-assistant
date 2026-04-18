@@ -12,13 +12,19 @@
           "toolCalls": [
             {
               "id": "tc-propose-1",
-              "name": "propose_event",
+              "name": "propose_events",
               "input": {
-                "action": "create",
-                "title": "Meeting with Alice",
-                "start": "2026-04-01T10:00:00-04:00",
-                "end": "2026-04-01T11:00:00-04:00",
-                "attendees": ["alice@example.com"]
+                "confirmation_mode": "single",
+                "events": [
+                  {
+                    "action": "create",
+                    "id": "",
+                    "title": "Meeting with Alice",
+                    "start": "2026-04-01T10:00:00-04:00",
+                    "end": "2026-04-01T11:00:00-04:00",
+                    "attendees": ["alice@example.com"]
+                  }
+                ]
               }
             }
           ]

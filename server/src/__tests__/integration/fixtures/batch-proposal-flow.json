@@ -44,12 +44,13 @@
           "toolCalls": [
             {
               "id": "tc-batch-1",
-              "name": "propose_batched_events",
+              "name": "propose_events",
               "input": {
+                "confirmation_mode": "accept_all",
                 "events": [
-                  { "action": "delete", "id": "evt-1", "title": "Standup", "start": "2026-04-01T09:00:00-04:00", "end": "2026-04-01T09:30:00-04:00" },
-                  { "action": "delete", "id": "evt-2", "title": "Planning", "start": "2026-04-01T10:00:00-04:00", "end": "2026-04-01T11:00:00-04:00" },
-                  { "action": "delete", "id": "evt-3", "title": "Retro", "start": "2026-04-01T14:00:00-04:00", "end": "2026-04-01T15:00:00-04:00" }
+                  { "action": "delete", "id": "evt-1", "title": "Standup", "start": "2026-04-01T09:00:00-04:00", "end": "2026-04-01T09:30:00-04:00", "attendees": [] },
+                  { "action": "delete", "id": "evt-2", "title": "Planning", "start": "2026-04-01T10:00:00-04:00", "end": "2026-04-01T11:00:00-04:00", "attendees": [] },
+                  { "action": "delete", "id": "evt-3", "title": "Retro", "start": "2026-04-01T14:00:00-04:00", "end": "2026-04-01T15:00:00-04:00", "attendees": [] }
                 ]
               }
             }

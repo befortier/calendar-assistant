@@ -1,5 +1,5 @@
 {
-  "description": "Agent proposes a mix of deletes, creates, and an update in one propose_batched_events call. Server should split into separate batch proposals per action type.",
+  "description": "Agent proposes a mix of deletes, creates, and an update in one propose_events call with confirmation_mode 'accept_all'. Server emits a single batch_proposal containing all entries — the frontend renders the mixed-action layout.",
   "calendar": {
     "events": [
       {
@@ -24,7 +24,7 @@
   },
   "requests": [
     {
-      "description": "Agent proposes mixed actions in a single propose_batched_events call",
+      "description": "Agent proposes mixed actions in a single propose_events call with confirmation_mode 'accept_all'",
       "messages": [{ "role": "user", "content": "Delete the lunch breaks, add a buffer after the board meeting, and push working lunch to 1:30" }],
       "llmBeats": [
         {
@@ -33,8 +33,9 @@
           "toolCalls": [
             {
               "id": "tc-batch-mixed",
-              "name": "propose_batched_events",
+              "name": "propose_events",
               "input": {
+                "confirmation_mode": "accept_all",
                 "events": [
                   { "action": "delete", "id": "evt-lunch-1", "title": "Lunch Break", "start": "2026-04-01T12:00:00-04:00", "end": "2026-04-01T13:00:00-04:00", "attendees": [] },
                   { "action": "delete", "id": "evt-lunch-2", "title": "Lunch Break", "start": "2026-04-02T12:00:00-04:00", "end": "2026-04-02T13:00:00-04:00", "attendees": [] },
@@ -48,7 +49,7 @@
         },
         {
           "stopReason": "end_turn",
-          "text": "I've proposed the changes in separate groups. Review and confirm each batch.",
+          "text": "I've proposed all the changes in one batch. Review and confirm.",
           "toolCalls": []
         }
       ]
