@@ -27,31 +27,24 @@ export const calendarTools: ToolDefinition[] = [
     },
   },
   {
-    name: 'propose_event',
-    description: `Shows a single interactive event card the user can accept or decline. If called multiple times, each card appears as an independent option — accepting one does not affect the others.`,
+    name: 'propose_events',
+    description: `Shows event proposal card(s) the user can accept or decline. Pick one confirmation_mode and pack every related event into a single call:
+- 'single': one event card. events must contain exactly one entry.
+- 'choose_one': mutually-exclusive alternatives; accepting one auto-declines the rest. Requires events.length >= 2.
+- 'accept_all': a set of changes meant to go through together. Actions can mix (create/update/delete). Requires events.length >= 1.
+
+Never call this tool more than once for related proposals — combine them into one call with the right mode.`,
     inputSchema: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['create', 'update', 'delete'], description: 'What this proposal is for' },
-        id: { type: 'string', description: 'Event ID (empty string for new events)' },
-        title: { type: 'string', description: 'Event title' },
-        start: { type: 'string', description: 'Start datetime (ISO 8601)' },
-        end: { type: 'string', description: 'End datetime (ISO 8601)' },
-        attendees: { type: 'array', items: { type: 'string' }, description: 'Attendee emails' },
-        recurrence: { type: 'array', items: { type: 'string' }, description: 'Recurrence rules in RFC 5545 RRULE format (e.g. ["RRULE:FREQ=WEEKLY;BYDAY=TU"]). Include when proposing a recurring event.' },
-      },
-      required: ['action', 'id', 'title', 'start', 'end', 'attendees'],
-    },
-  },
-  {
-    name: 'propose_batched_events',
-    description: `Shows a group of events as a single reviewable card. The user can remove individual items, then accept or decline the entire batch at once. Actions can be mixed — creates, updates, and deletes in one batch.`,
-    inputSchema: {
-      type: 'object',
-      properties: {
+        confirmation_mode: {
+          type: 'string',
+          enum: ['single', 'choose_one', 'accept_all'],
+          description: "How the user should confirm these events. 'single' = one card; 'choose_one' = pick one of N alternatives; 'accept_all' = review and accept the whole set.",
+        },
         events: {
           type: 'array',
-          description: 'The events to propose as a batch.',
+          description: 'The event(s) being proposed. See confirmation_mode for required length.',
           items: {
             type: 'object',
             properties: {
@@ -67,7 +60,7 @@ export const calendarTools: ToolDefinition[] = [
           },
         },
       },
-      required: ['events'],
+      required: ['confirmation_mode', 'events'],
     },
   },
   {

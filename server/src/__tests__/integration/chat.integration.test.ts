@@ -180,7 +180,7 @@ describe('Integration: chat flow', () => {
   });
 
   describe('Scenario 5: Mixed-action batch gets split', () => {
-    it('splits a single propose_batched_events with mixed actions into separate batch_proposal events', async () => {
+    it("splits a single propose_events (accept_all) with mixed actions into separate batch_proposal events", async () => {
       const fixture = mixedBatchFixture.requests[0];
       const { app, token } = createTestApp({
         calendarEvents: mixedBatchFixture.calendar.events,

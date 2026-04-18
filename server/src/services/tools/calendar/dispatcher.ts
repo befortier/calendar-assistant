@@ -45,8 +45,7 @@ async function dispatchTool(
     case 'create_event':            return handleCreateEvent(input, service, userTimeZone);
     case 'update_event':            return handleUpdateEvent(input, service);
     case 'delete_event':            return handleDeleteEvent(input, service);
-    case 'propose_event':           return handleProposeEvent(input, emit);
-    case 'propose_batched_events':  return handleProposeBatchedEvents(input, emit);
+    case 'propose_events':          return handleProposeEvents(input, emit);
     default:                        throw new Error(`Unknown tool: ${name}`);
   }
 }
@@ -177,23 +176,74 @@ function toAction(input: Record<string, unknown>): 'create' | 'update' | 'delete
     : 'create');
 }
 
-function handleProposeEvent(input: Record<string, unknown>, emit: SSEEmitter): Promise<string> {
-  const sanitized = sanitizeProposalInput(input);
-  emit({
-    event: SSEEventType.EventProposal,
-    data: { id: (sanitized.id as string) || crypto.randomUUID(), action: toAction(sanitized), event: toCalendarEvent(sanitized) },
-  });
-  return Promise.resolve('Proposal shown to user.');
+type ConfirmationMode = 'single' | 'choose_one' | 'accept_all';
+
+function asConfirmationMode(value: unknown): ConfirmationMode {
+  if (value === 'single' || value === 'choose_one' || value === 'accept_all') return value;
+  throw new Error(
+    `propose_events requires confirmation_mode to be 'single', 'choose_one', or 'accept_all' (got ${JSON.stringify(value)})`,
+  );
 }
 
-function handleProposeBatchedEvents(input: Record<string, unknown>, emit: SSEEmitter): Promise<string> {
+function handleProposeEvents(input: Record<string, unknown>, emit: SSEEmitter): Promise<string> {
+  const mode = asConfirmationMode(input.confirmation_mode);
   const rawEvents = Array.isArray(input.events) ? (input.events as Record<string, unknown>[]) : [];
+
+  if (mode === 'single') {
+    if (rawEvents.length !== 1) {
+      throw new Error(
+        `propose_events with confirmation_mode 'single' requires exactly one event (got ${rawEvents.length}). Use 'choose_one' for alternatives or 'accept_all' for a batch.`,
+      );
+    }
+    const sanitized = sanitizeProposalInput(rawEvents[0]);
+    emit({
+      event: SSEEventType.EventProposal,
+      data: {
+        id: (sanitized.id as string) || crypto.randomUUID(),
+        action: toAction(sanitized),
+        event: toCalendarEvent(sanitized),
+      },
+    });
+    return Promise.resolve('Proposal shown to user.');
+  }
+
+  if (mode === 'choose_one') {
+    if (rawEvents.length < 2) {
+      throw new Error(
+        `propose_events with confirmation_mode 'choose_one' requires at least 2 alternatives (got ${rawEvents.length}). Use 'single' for one event.`,
+      );
+    }
+    const groupId = crypto.randomUUID();
+    for (const event of rawEvents) {
+      const sanitized = sanitizeProposalInput(event);
+      emit({
+        event: SSEEventType.EventProposal,
+        data: {
+          id: (sanitized.id as string) || crypto.randomUUID(),
+          action: toAction(sanitized),
+          event: toCalendarEvent(sanitized),
+          group: groupId,
+        },
+      });
+    }
+    return Promise.resolve('Proposal shown to user.');
+  }
+
+  // mode === 'accept_all'
+  if (rawEvents.length < 1) {
+    throw new Error(
+      `propose_events with confirmation_mode 'accept_all' requires at least 1 event (got 0).`,
+    );
+  }
   const callId = crypto.randomUUID();
-  const entries: BatchProposalEntry[] = rawEvents.map((e, i) => ({
-    id: `${callId}-${i}`,
-    action: toAction(e),
-    event: toCalendarEvent(e),
-  }));
+  const entries: BatchProposalEntry[] = rawEvents.map((e, i) => {
+    const sanitized = sanitizeProposalInput(e);
+    return {
+      id: `${callId}-${i}`,
+      action: toAction(sanitized),
+      event: toCalendarEvent(sanitized),
+    };
+  });
 
   // Group entries by action so mixed batches (delete + create + update)
   // become separate batch proposals with homogeneous actions.

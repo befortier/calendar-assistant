@@ -300,15 +300,99 @@ describe('CalendarToolDispatcher: recurrence_scope validation', () => {
 });
 
 // ---------------------------------------------------------------------------
-// propose_batched_events — mixed action splitting
+// propose_events — 'single' mode
 // ---------------------------------------------------------------------------
 
-describe('CalendarToolDispatcher: propose_batched_events', () => {
+describe("CalendarToolDispatcher: propose_events (single)", () => {
+  it('emits one event_proposal with no group id', async () => {
+    const emit = vi.fn();
+    const dispatcher = makeCalendarToolDispatcher(makeService(), emit);
+
+    await dispatcher.dispatch('propose_events', {
+      confirmation_mode: 'single',
+      events: [
+        { action: 'create', id: '', title: 'Lunch', start: START, end: END, attendees: [] },
+      ],
+    });
+
+    const proposals = emit.mock.calls.filter(([e]) => e.event === 'event_proposal');
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0][0].data.event.title).toBe('Lunch');
+    expect(proposals[0][0].data.group).toBeUndefined();
+    expect(emit.mock.calls.filter(([e]) => e.event === 'batch_proposal')).toHaveLength(0);
+  });
+
+  it('throws when events.length !== 1', async () => {
+    const dispatcher = makeCalendarToolDispatcher(makeService(), vi.fn());
+
+    await expect(
+      dispatcher.dispatch('propose_events', {
+        confirmation_mode: 'single',
+        events: [
+          { action: 'create', id: '', title: 'A', start: START, end: END, attendees: [] },
+          { action: 'create', id: '', title: 'B', start: START, end: END, attendees: [] },
+        ],
+      }),
+    ).rejects.toThrow(/requires exactly one event/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// propose_events — 'choose_one' mode
+// ---------------------------------------------------------------------------
+
+describe("CalendarToolDispatcher: propose_events (choose_one)", () => {
+  it('emits one event_proposal per alternative with a shared group id', async () => {
+    const emit = vi.fn();
+    const dispatcher = makeCalendarToolDispatcher(makeService(), emit);
+
+    await dispatcher.dispatch('propose_events', {
+      confirmation_mode: 'choose_one',
+      events: [
+        { action: 'create', id: '', title: 'Option A', start: START, end: END, attendees: [] },
+        { action: 'create', id: '', title: 'Option B', start: START, end: END, attendees: [] },
+        { action: 'create', id: '', title: 'Option C', start: START, end: END, attendees: [] },
+      ],
+    });
+
+    const proposals = emit.mock.calls.filter(([e]) => e.event === 'event_proposal');
+    expect(proposals).toHaveLength(3);
+
+    const groups = proposals.map(([e]) => e.data.group);
+    expect(groups.every((g) => typeof g === 'string' && g.length > 0)).toBe(true);
+    expect(new Set(groups).size).toBe(1);
+
+    const titles = proposals.map(([e]) => e.data.event.title);
+    expect(titles).toEqual(['Option A', 'Option B', 'Option C']);
+
+    expect(emit.mock.calls.filter(([e]) => e.event === 'batch_proposal')).toHaveLength(0);
+  });
+
+  it('throws when events.length < 2', async () => {
+    const dispatcher = makeCalendarToolDispatcher(makeService(), vi.fn());
+
+    await expect(
+      dispatcher.dispatch('propose_events', {
+        confirmation_mode: 'choose_one',
+        events: [
+          { action: 'create', id: '', title: 'Only', start: START, end: END, attendees: [] },
+        ],
+      }),
+    ).rejects.toThrow(/requires at least 2 alternatives/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// propose_events — 'accept_all' mode (mixed-action splitting preserved)
+// ---------------------------------------------------------------------------
+
+describe("CalendarToolDispatcher: propose_events (accept_all)", () => {
   it('emits a single batch_proposal when all entries share the same action', async () => {
     const emit = vi.fn();
     const dispatcher = makeCalendarToolDispatcher(makeService(), emit);
 
-    await dispatcher.dispatch('propose_batched_events', {
+    await dispatcher.dispatch('propose_events', {
+      confirmation_mode: 'accept_all',
       events: [
         { action: 'delete', id: 'evt-1', title: 'Standup', start: START, end: END, attendees: [] },
         { action: 'delete', id: 'evt-2', title: 'Retro', start: START, end: END, attendees: [] },
@@ -325,7 +409,8 @@ describe('CalendarToolDispatcher: propose_batched_events', () => {
     const emit = vi.fn();
     const dispatcher = makeCalendarToolDispatcher(makeService(), emit);
 
-    await dispatcher.dispatch('propose_batched_events', {
+    await dispatcher.dispatch('propose_events', {
+      confirmation_mode: 'accept_all',
       events: [
         { action: 'delete', id: 'evt-1', title: 'Lunch Break', start: START, end: END, attendees: [] },
         { action: 'delete', id: 'evt-2', title: 'Lunch Break', start: START, end: END, attendees: [] },
@@ -364,7 +449,8 @@ describe('CalendarToolDispatcher: propose_batched_events', () => {
     const emit = vi.fn();
     const dispatcher = makeCalendarToolDispatcher(makeService(), emit);
 
-    await dispatcher.dispatch('propose_batched_events', {
+    await dispatcher.dispatch('propose_events', {
+      confirmation_mode: 'accept_all',
       events: [
         { action: 'delete', id: 'evt-1', title: 'A', start: START, end: END, attendees: [] },
         { action: 'create', id: '', title: 'B', start: START, end: END, attendees: [] },
@@ -374,6 +460,40 @@ describe('CalendarToolDispatcher: propose_batched_events', () => {
     const batchEvents = emit.mock.calls.filter(([e]) => e.event === 'batch_proposal');
     const batchIds = batchEvents.map(([e]) => e.data.batchId);
     expect(new Set(batchIds).size).toBe(2);
+  });
+
+  it('throws when events is empty', async () => {
+    const dispatcher = makeCalendarToolDispatcher(makeService(), vi.fn());
+
+    await expect(
+      dispatcher.dispatch('propose_events', {
+        confirmation_mode: 'accept_all',
+        events: [],
+      }),
+    ).rejects.toThrow(/requires at least 1 event/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// propose_events — invalid mode
+// ---------------------------------------------------------------------------
+
+describe('CalendarToolDispatcher: propose_events (invalid)', () => {
+  it('throws a descriptive error when confirmation_mode is missing or bogus', async () => {
+    const dispatcher = makeCalendarToolDispatcher(makeService(), vi.fn());
+
+    await expect(
+      dispatcher.dispatch('propose_events', {
+        events: [{ action: 'create', id: '', title: 'x', start: START, end: END, attendees: [] }],
+      }),
+    ).rejects.toThrow(/confirmation_mode/);
+
+    await expect(
+      dispatcher.dispatch('propose_events', {
+        confirmation_mode: 'batch',
+        events: [{ action: 'create', id: '', title: 'x', start: START, end: END, attendees: [] }],
+      }),
+    ).rejects.toThrow(/confirmation_mode/);
   });
 });
 

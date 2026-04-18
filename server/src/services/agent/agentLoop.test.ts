@@ -51,7 +51,7 @@ function makeDispatchToolWithEmitter(
   const stubService = {} as GoogleCalendarService;
   const dispatcher = makeCalendarToolDispatcher(stubService, emit);
   const dispatchTool = async (name: string, input: Record<string, unknown>): Promise<string> => {
-    if (name === 'propose_event' || name === 'propose_batched_events') {
+    if (name === 'propose_events') {
       return dispatcher.dispatch(name, input);
     }
     return otherDispatch(name, input);
@@ -113,11 +113,19 @@ describe('runAgentLoop', () => {
   it('emits event_proposal immediately and does NOT call the underlying Google service', async () => {
     const proposal = {
       id: 'tc-p1',
-      name: 'propose_event',
+      name: 'propose_events',
       input: {
-        title: 'Lunch',
-        start: '2026-03-22T12:00:00Z',
-        end: '2026-03-22T13:00:00Z',
+        confirmation_mode: 'single',
+        events: [
+          {
+            action: 'create',
+            id: '',
+            title: 'Lunch',
+            start: '2026-03-22T12:00:00Z',
+            end: '2026-03-22T13:00:00Z',
+            attendees: [],
+          },
+        ],
       },
     };
     const provider = mockProvider([
@@ -146,22 +154,21 @@ describe('runAgentLoop', () => {
     expect(provider.stream).toHaveBeenCalledTimes(2);
   });
 
-  // d. Multiple propose_event calls (alternatives) emit individual event_proposal events, never batched
-  it('emits individual event_proposal for each propose_event call (alternatives scenario)', async () => {
-    const proposals = [
-      {
-        id: 'tc-p1',
-        name: 'propose_event',
-        input: { action: 'create', title: 'Option 1', start: 'a', end: 'b' },
+  // d. choose_one emits N event_proposal events sharing a group id, never a batch_proposal
+  it("emits N event_proposal events with a shared group id for confirmation_mode 'choose_one'", async () => {
+    const proposal = {
+      id: 'tc-p1',
+      name: 'propose_events',
+      input: {
+        confirmation_mode: 'choose_one',
+        events: [
+          { action: 'create', id: '', title: 'Option 1', start: 'a', end: 'b', attendees: [] },
+          { action: 'create', id: '', title: 'Option 2', start: 'c', end: 'd', attendees: [] },
+        ],
       },
-      {
-        id: 'tc-p2',
-        name: 'propose_event',
-        input: { action: 'create', title: 'Option 2', start: 'c', end: 'd' },
-      },
-    ];
+    };
     const provider = mockProvider([
-      { stopReason: StopReason.ToolUse, text: '', toolCalls: proposals },
+      { stopReason: StopReason.ToolUse, text: '', toolCalls: [proposal] },
       { stopReason: StopReason.EndTurn, text: 'Pick one!', toolCalls: [] },
     ]);
     const events: SSEEvent[] = [];
@@ -179,47 +186,19 @@ describe('runAgentLoop', () => {
     expect(proposalEvents).toHaveLength(2);
     expect(proposalEvents[0].data).toMatchObject({ event: { title: 'Option 1' } });
     expect(proposalEvents[1].data).toMatchObject({ event: { title: 'Option 2' } });
+    const groups = proposalEvents.map((e) => (e.data as { group?: string }).group);
+    expect(new Set(groups).size).toBe(1);
+    expect(groups[0]).toBeDefined();
     expect(events.filter((e) => e.event === SSEEventType.BatchProposal)).toHaveLength(0);
   });
 
-  // d2. propose_event calls across iterations also stay individual
-  it('emits individual event_proposal for propose_event calls spread across iterations', async () => {
-    const provider = mockProvider([
-      { stopReason: StopReason.ToolUse, text: 'Option 1:', toolCalls: [
-        { id: 'p1', name: 'propose_event', input: { action: 'create', title: 'Sync', start: '2026-03-30T09:00:00Z', end: '2026-03-30T09:30:00Z' } },
-      ]},
-      { stopReason: StopReason.ToolUse, text: 'Option 2:', toolCalls: [
-        { id: 'p2', name: 'propose_event', input: { action: 'create', title: 'Sync', start: '2026-03-30T10:00:00Z', end: '2026-03-30T10:30:00Z' } },
-      ]},
-      { stopReason: StopReason.ToolUse, text: 'Option 3:', toolCalls: [
-        { id: 'p3', name: 'propose_event', input: { action: 'create', title: 'Sync', start: '2026-03-30T11:00:00Z', end: '2026-03-30T11:30:00Z' } },
-      ]},
-      { stopReason: StopReason.EndTurn, text: 'Pick one!', toolCalls: [] },
-    ]);
-    const events: SSEEvent[] = [];
-    const emit = collectEvents(events);
-    const { dispatchTool, otherDispatch } = makeDispatchToolWithEmitter(emit);
-    const deps = makeDeps({ provider, dispatchTool });
-
-    await runAgentLoop(
-      [{ role: 'user', content: 'Give me 3 options' }],
-      deps,
-      emit,
-    );
-
-    const proposalEvents = events.filter((e) => e.event === SSEEventType.EventProposal);
-    expect(proposalEvents).toHaveLength(3);
-    expect(events.filter((e) => e.event === SSEEventType.BatchProposal)).toHaveLength(0);
-    expect(otherDispatch).not.toHaveBeenCalled();
-    expect(provider.stream).toHaveBeenCalledTimes(4);
-  });
-
-  // d3. propose_batched_events emits a single batch_proposal
-  it('emits a single batch_proposal for propose_batched_events', async () => {
+  // d3. accept_all emits a single batch_proposal for homogeneous actions
+  it("emits a single batch_proposal for confirmation_mode 'accept_all' with homogeneous actions", async () => {
     const batchCall = {
       id: 'tc-b1',
-      name: 'propose_batched_events',
+      name: 'propose_events',
       input: {
+        confirmation_mode: 'accept_all',
         events: [
           { action: 'create', id: '', title: 'Standup', start: '2026-03-31T09:00:00Z', end: '2026-03-31T09:30:00Z', attendees: [] },
           { action: 'create', id: '', title: 'Standup', start: '2026-04-02T09:00:00Z', end: '2026-04-02T09:30:00Z', attendees: [] },
