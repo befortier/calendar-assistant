@@ -179,8 +179,8 @@ describe('Integration: chat flow', () => {
     });
   });
 
-  describe('Scenario 5: Mixed-action batch gets split', () => {
-    it("splits a single propose_events (accept_all) with mixed actions into separate batch_proposal events", async () => {
+  describe('Scenario 5: Mixed-action batch renders as a single card', () => {
+    it("emits one batch_proposal containing all mixed-action entries for confirmation_mode 'accept_all'", async () => {
       const fixture = mixedBatchFixture.requests[0];
       const { app, token } = createTestApp({
         calendarEvents: mixedBatchFixture.calendar.events,
@@ -192,31 +192,17 @@ describe('Integration: chat flow', () => {
 
       const events = parseSSEStream(res.text);
 
-      // Should have 3 separate batch_proposal events (delete, create, update)
       const batchProposals = events.filter((e) => e.event === 'batch_proposal');
-      expect(batchProposals).toHaveLength(3);
+      expect(batchProposals).toHaveLength(1);
 
-      // Each batch should have homogeneous actions
-      for (const bp of batchProposals) {
-        const entries = (bp.data as { entries: Array<{ action: string }> }).entries;
-        const actions = new Set(entries.map((e) => e.action));
-        expect(actions.size).toBe(1);
-      }
+      const entries = (batchProposals[0].data as { entries: Array<{ action: string }> }).entries;
+      expect(entries).toHaveLength(5);
 
-      // Verify counts per action
-      const allEntries = batchProposals.flatMap(
-        (bp) => (bp.data as { entries: Array<{ action: string }> }).entries,
-      );
-      const deletions = allEntries.filter((e) => e.action === 'delete');
-      const creates = allEntries.filter((e) => e.action === 'create');
-      const updates = allEntries.filter((e) => e.action === 'update');
-      expect(deletions).toHaveLength(2);
-      expect(creates).toHaveLength(2);
-      expect(updates).toHaveLength(1);
-
-      // Each batch has a unique batchId
-      const batchIds = batchProposals.map((bp) => (bp.data as { batchId: string }).batchId);
-      expect(new Set(batchIds).size).toBe(3);
+      const counts = entries.reduce<Record<string, number>>((acc, e) => {
+        acc[e.action] = (acc[e.action] ?? 0) + 1;
+        return acc;
+      }, {});
+      expect(counts).toEqual({ delete: 2, create: 2, update: 1 });
     });
   });
 });

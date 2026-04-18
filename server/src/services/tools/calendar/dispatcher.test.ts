@@ -405,7 +405,7 @@ describe("CalendarToolDispatcher: propose_events (accept_all)", () => {
     expect(batchEvents[0][0].data.entries.every((e: { action: string }) => e.action === 'delete')).toBe(true);
   });
 
-  it('splits mixed-action batches into separate batch_proposal events per action', async () => {
+  it('emits a single batch_proposal containing mixed actions (one card, one CTA)', async () => {
     const emit = vi.fn();
     const dispatcher = makeCalendarToolDispatcher(makeService(), emit);
 
@@ -421,45 +421,23 @@ describe("CalendarToolDispatcher: propose_events (accept_all)", () => {
     });
 
     const batchEvents = emit.mock.calls.filter(([e]) => e.event === 'batch_proposal');
-    expect(batchEvents).toHaveLength(3);
+    expect(batchEvents).toHaveLength(1);
 
-    const actions = batchEvents.map(([e]) => e.data.entries[0].action);
-    expect(actions).toContain('delete');
-    expect(actions).toContain('create');
-    expect(actions).toContain('update');
+    const entries = batchEvents[0][0].data.entries as Array<{ id: string; action: string }>;
+    expect(entries).toHaveLength(5);
 
-    const deleteBatch = batchEvents.find(([e]) => e.data.entries[0].action === 'delete');
-    expect(deleteBatch).toBeDefined();
-    expect(deleteBatch![0].data.entries).toHaveLength(2);
+    const actionCounts = entries.reduce<Record<string, number>>((acc, e) => {
+      acc[e.action] = (acc[e.action] ?? 0) + 1;
+      return acc;
+    }, {});
+    expect(actionCounts).toEqual({ delete: 2, create: 2, update: 1 });
 
-    const createBatch = batchEvents.find(([e]) => e.data.entries[0].action === 'create');
-    expect(createBatch).toBeDefined();
-    expect(createBatch![0].data.entries).toHaveLength(2);
+    // Entry order is preserved from input
+    expect(entries.map((e) => e.action)).toEqual(['delete', 'delete', 'create', 'update', 'create']);
 
-    const updateBatch = batchEvents.find(([e]) => e.data.entries[0].action === 'update');
-    expect(updateBatch).toBeDefined();
-    expect(updateBatch![0].data.entries).toHaveLength(1);
-
-    // All entry IDs should be unique across the entire call
-    const allIds = batchEvents.flatMap(([e]) => e.data.entries.map((en: { id: string }) => en.id));
-    expect(new Set(allIds).size).toBe(allIds.length);
-  });
-
-  it('assigns unique batchIds to each split batch', async () => {
-    const emit = vi.fn();
-    const dispatcher = makeCalendarToolDispatcher(makeService(), emit);
-
-    await dispatcher.dispatch('propose_events', {
-      confirmation_mode: 'accept_all',
-      events: [
-        { action: 'delete', id: 'evt-1', title: 'A', start: START, end: END, attendees: [] },
-        { action: 'create', id: '', title: 'B', start: START, end: END, attendees: [] },
-      ],
-    });
-
-    const batchEvents = emit.mock.calls.filter(([e]) => e.event === 'batch_proposal');
-    const batchIds = batchEvents.map(([e]) => e.data.batchId);
-    expect(new Set(batchIds).size).toBe(2);
+    // All entry IDs should be unique
+    const ids = entries.map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it('throws when events is empty', async () => {

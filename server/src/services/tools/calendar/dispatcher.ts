@@ -235,31 +235,20 @@ function handleProposeEvents(input: Record<string, unknown>, emit: SSEEmitter): 
       `propose_events with confirmation_mode 'accept_all' requires at least 1 event (got 0).`,
     );
   }
-  const callId = crypto.randomUUID();
+  const batchId = crypto.randomUUID();
   const entries: BatchProposalEntry[] = rawEvents.map((e, i) => {
     const sanitized = sanitizeProposalInput(e);
     return {
-      id: `${callId}-${i}`,
+      id: `${batchId}-${i}`,
       action: toAction(sanitized),
       event: toCalendarEvent(sanitized),
     };
   });
 
-  // Group entries by action so mixed batches (delete + create + update)
-  // become separate batch proposals with homogeneous actions.
-  const grouped = new Map<string, BatchProposalEntry[]>();
-  for (const entry of entries) {
-    const existing = grouped.get(entry.action);
-    if (existing) existing.push(entry);
-    else grouped.set(entry.action, [entry]);
-  }
-
-  for (const actionEntries of grouped.values()) {
-    emit({
-      event: SSEEventType.BatchProposal,
-      data: { batchId: crypto.randomUUID(), entries: actionEntries },
-    });
-  }
+  emit({
+    event: SSEEventType.BatchProposal,
+    data: { batchId, entries },
+  });
 
   return Promise.resolve('Proposal shown to user.');
 }

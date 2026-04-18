@@ -1,5 +1,5 @@
 {
-  "description": "Agent proposes a mix of deletes, creates, and an update in one propose_events call with confirmation_mode 'accept_all'. Server should split into separate batch proposals per action type.",
+  "description": "Agent proposes a mix of deletes, creates, and an update in one propose_events call with confirmation_mode 'accept_all'. Server emits a single batch_proposal containing all entries — the frontend renders the mixed-action layout.",
   "calendar": {
     "events": [
       {
@@ -49,7 +49,7 @@
         },
         {
           "stopReason": "end_turn",
-          "text": "I've proposed the changes in separate groups. Review and confirm each batch.",
+          "text": "I've proposed all the changes in one batch. Review and confirm.",
           "toolCalls": []
         }
       ]
