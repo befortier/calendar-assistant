@@ -20,6 +20,7 @@ function makeDeps(overrides?: Partial<GoogleCalendarDeps>): GoogleCalendarDeps {
     resolveAccessStatus: vi.fn().mockReturnValue('not_found'),
     stripRecurrenceSuffix: vi.fn((id: string) => id.replace(/_\d{8}(T\d{6}Z)?$/, '')),
     truncateRruleUntil: vi.fn((_rrule: string, _id: string) => 'RRULE:FREQ=WEEKLY;UNTIL=STUBBED'),
+    retry: <T>(fn: () => Promise<T>): Promise<T> => fn(),
     ...overrides,
   };
 }
@@ -265,6 +266,28 @@ describe('GoogleCalendarService.createEvent', () => {
     const call = mockInsert.mock.calls[0][0];
     expect(call.requestBody.recurrence).toEqual(['RRULE:FREQ=WEEKLY;BYDAY=MO']);
     expect(call.requestBody.reminders).toEqual({ useDefault: false, overrides: [{ method: 'popup', minutes: 15 }] });
+  });
+
+  it('retries through deps.retry on transient failures', async () => {
+    const rateLimited = Object.assign(new Error('HTTP 429'), { code: '429', response: { status: 429 } });
+    const mockInsert = vi.fn()
+      .mockRejectedValueOnce(rateLimited)
+      .mockRejectedValueOnce(rateLimited)
+      .mockResolvedValueOnce({ data: MOCK_API_RESPONSE });
+    // retry passes calls straight through — the real retry behavior is covered in retry.test.ts
+    const retry = vi.fn(async <T>(fn: () => Promise<T>): Promise<T> => {
+      for (let i = 0; i < 5; i++) {
+        try { return await fn(); } catch (e) { if (i === 4) throw e; }
+      }
+      throw new Error('unreachable');
+    });
+    const service = new GoogleCalendarService(makeCalendar({ insert: mockInsert }), 'primary', makeDeps({ retry }));
+
+    const event = await service.createEvent({ title: 'T', start: '2026-03-22T10:00:00Z', end: '2026-03-22T10:30:00Z' });
+
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(mockInsert).toHaveBeenCalledTimes(3);
+    expect(event).toEqual(NORMALIZED_EVENT);
   });
 });
 

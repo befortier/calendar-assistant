@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { runAgentLoop, type AgentLoopDeps } from './agentLoop';
+import { runAgentLoop, MAX_CONCURRENT_TOOLS, type AgentLoopDeps } from './agentLoop';
 import type { LLMProvider, StreamResult, ChatMessage, ToolDefinition } from './types';
 import { StopReason } from './types';
 import { SSEEventType, type SSEEvent, type SSEEmitter } from '../sse';
@@ -81,6 +81,38 @@ describe('runAgentLoop', () => {
     expect(events[0]).toEqual({ event: SSEEventType.Status, data: { type: 'thinking' } });
     expect(events).toContainEqual({ event: SSEEventType.Delta, data: { text: 'Hello' } });
     expect(events[events.length - 1]).toEqual({ event: SSEEventType.Done, data: {} });
+  });
+
+  // b0. Concurrency cap — bounded to prevent thundering-herd on Google Calendar
+  it('caps concurrent in-flight tool calls at MAX_CONCURRENT_TOOLS', async () => {
+    const N = MAX_CONCURRENT_TOOLS * 3;
+    const toolCalls = Array.from({ length: N }, (_, i) => ({
+      id: `tc-${i}`,
+      name: 'get_events',
+      input: { start: 'a', end: 'b' },
+    }));
+    const provider = mockProvider([
+      { stopReason: StopReason.ToolUse, text: '', toolCalls },
+      { stopReason: StopReason.EndTurn, text: 'done', toolCalls: [] },
+    ]);
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const dispatchTool = vi.fn(async () => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      return 'ok';
+    });
+    const deps = makeDeps({ provider, dispatchTool });
+    const events: SSEEvent[] = [];
+
+    await runAgentLoop([{ role: 'user', content: 'x' }], deps, collectEvents(events));
+
+    expect(dispatchTool).toHaveBeenCalledTimes(N);
+    expect(maxInFlight).toBeLessThanOrEqual(MAX_CONCURRENT_TOOLS);
+    // Sanity check: we should have actually filled the pool, not under-parallelized
+    expect(maxInFlight).toBe(MAX_CONCURRENT_TOOLS);
   });
 
   // b. Tool dispatch + loop
@@ -227,6 +259,47 @@ describe('runAgentLoop', () => {
     expect(batchData.batchId).toBeDefined();
     expect(batchData.entries).toHaveLength(3);
     expect(events.filter((e) => e.event === SSEEventType.EventProposal)).toHaveLength(0);
+  });
+
+  // d2. MaxTokens + tool calls — dispatch them, don't discard (regression: narration loop on 30+ batch)
+  it('dispatches tool calls when stopReason is MaxTokens (not just ToolUse)', async () => {
+    const toolCalls = Array.from({ length: 5 }, (_, i) => ({
+      id: `tc-${i}`,
+      name: 'get_events',
+      input: { start: 'a', end: 'b' },
+    }));
+    const provider = mockProvider([
+      // Model was cut off mid-response but still returned 5 complete tool_use blocks
+      { stopReason: StopReason.MaxTokens, text: 'Creating now...', toolCalls },
+      { stopReason: StopReason.EndTurn, text: 'done', toolCalls: [] },
+    ]);
+    const dispatchTool = vi.fn().mockResolvedValue('ok');
+    const deps = makeDeps({ provider, dispatchTool });
+    const events: SSEEvent[] = [];
+
+    await runAgentLoop([{ role: 'user', content: 'Schedule 30 events' }], deps, collectEvents(events));
+
+    expect(dispatchTool).toHaveBeenCalledTimes(5);
+    // Loop continued to next turn — either to emit more tool calls or end_turn
+    expect(provider.stream).toHaveBeenCalledTimes(2);
+  });
+
+  it('still nudges "Please continue" when MaxTokens happens with NO tool calls (pure text cutoff)', async () => {
+    const provider = mockProvider([
+      { stopReason: StopReason.MaxTokens, text: 'Partial text...', toolCalls: [] },
+      { stopReason: StopReason.EndTurn, text: '...continued.', toolCalls: [] },
+    ]);
+    const dispatchTool = vi.fn();
+    const deps = makeDeps({ provider, dispatchTool });
+    const events: SSEEvent[] = [];
+
+    await runAgentLoop([{ role: 'user', content: 'Tell me a long story' }], deps, collectEvents(events));
+
+    expect(dispatchTool).not.toHaveBeenCalled();
+    expect(provider.stream).toHaveBeenCalledTimes(2);
+    // 2nd call should have received a "Please continue." user nudge
+    const secondCallMessages = (provider.stream as ReturnType<typeof vi.fn>).mock.calls[1][1] as ChatMessage[];
+    expect(secondCallMessages[secondCallMessages.length - 1]).toMatchObject({ role: 'user', content: 'Please continue.' });
   });
 
   // e. Tool dispatch error

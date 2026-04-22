@@ -2,8 +2,13 @@ import type { LLMProvider, ChatMessage, ToolDefinition, ToolCall } from './types
 import { StopReason } from './types';
 import type { SSEEmitter } from '../sse';
 import { SSEEventType } from '../sse';
+import { mapWithConcurrency } from './concurrency';
 
 const MAX_ITERATIONS = 10;
+// Cap parallel tool dispatches — Google Calendar's per-user write quota is
+// ~10/sec; 5 workers at ~500ms/op sits right at the line and leaves retry
+// budget for real transient failures instead of predictable quota hits.
+export const MAX_CONCURRENT_TOOLS = 5;
 
 export interface AgentLoopDeps {
   provider: LLMProvider;
@@ -37,13 +42,10 @@ export async function runAgentLoop(
       }
 
       case StopReason.MaxTokens:
-        // Model hit the token budget mid-response. Nudge it to resume.
-        handleIncompleteResponse(messages, result.text);
-        continue;
-
       case StopReason.ToolUse: {
-        // API quirk: the model can signal tool_use but return no tool call blocks.
-        // Treat it the same as MaxTokens — nudge and retry.
+        // Model hit the token budget OR completed tool_use normally. Either way,
+        // any complete tool_use blocks returned are valid — dispatch them.
+        // MaxTokens WITHOUT tool calls (pure text cutoff) still needs a nudge.
         if (result.toolCalls.length === 0) {
           handleIncompleteResponse(messages, result.text);
           continue;
@@ -84,21 +86,25 @@ async function dispatchAll(
   dispatch: (name: string, input: Record<string, unknown>) => Promise<string>,
   emit: SSEEmitter,
 ): Promise<ChatMessage[]> {
-  return Promise.all(
-    toolCalls.map(async (tc): Promise<ChatMessage> => {
-      emit({ event: SSEEventType.ToolCall, data: { tool: tc.name } });
-      try {
-        const result = await dispatch(tc.name, tc.input);
-        emit({ event: SSEEventType.ToolResult, data: { tool: tc.name, summary: 'Completed' } });
-        return { role: 'tool_result', toolCallId: tc.id, content: result };
-      } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        emit({
-          event: SSEEventType.ToolResult,
-          data: { tool: tc.name, summary: errMsg, error: true },
-        });
-        return { role: 'tool_result', toolCallId: tc.id, content: `Error: ${errMsg}`, isError: true };
-      }
-    }),
-  );
+  return mapWithConcurrency(toolCalls, MAX_CONCURRENT_TOOLS, async (tc): Promise<ChatMessage> => {
+    const started = Date.now();
+    console.log(`[${new Date().toISOString()}] [tool] start ${tc.name}`);
+    emit({ event: SSEEventType.ToolCall, data: { tool: tc.name } });
+    try {
+      const result = await dispatch(tc.name, tc.input);
+      const dur = Date.now() - started;
+      console.log(`[${new Date().toISOString()}] [tool] done ${tc.name} dur=${dur}ms`);
+      emit({ event: SSEEventType.ToolResult, data: { tool: tc.name, summary: 'Completed' } });
+      return { role: 'tool_result', toolCallId: tc.id, content: result };
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const dur = Date.now() - started;
+      console.log(`[${new Date().toISOString()}] [tool] err ${tc.name} dur=${dur}ms msg=${errMsg}`);
+      emit({
+        event: SSEEventType.ToolResult,
+        data: { tool: tc.name, summary: errMsg, error: true },
+      });
+      return { role: 'tool_result', toolCallId: tc.id, content: `Error: ${errMsg}`, isError: true };
+    }
+  });
 }

@@ -11,12 +11,14 @@ import type {
 } from './types';
 import { normalizeEvent as defaultNormalizeEvent, resolveAccessStatus as defaultResolveAccessStatus } from './mappers';
 import { stripRecurrenceSuffix as defaultStripRecurrenceSuffix, truncateRruleUntil as defaultTruncateRruleUntil } from './recurrence';
+import { withRetry } from './retry';
 
 export interface GoogleCalendarDeps {
   normalizeEvent: (event: calendar_v3.Schema$Event) => CalendarEvent | null;
   resolveAccessStatus: (reason: string) => CalendarAccessStatus;
   stripRecurrenceSuffix: (eventId: string) => string;
   truncateRruleUntil: (rrule: string, instanceEventId: string) => string;
+  retry: <T>(fn: () => Promise<T>) => Promise<T>;
 }
 
 const defaultDeps: GoogleCalendarDeps = {
@@ -24,6 +26,7 @@ const defaultDeps: GoogleCalendarDeps = {
   resolveAccessStatus: defaultResolveAccessStatus,
   stripRecurrenceSuffix: defaultStripRecurrenceSuffix,
   truncateRruleUntil: defaultTruncateRruleUntil,
+  retry: (fn) => withRetry(fn),
 };
 
 export class GoogleCalendarService {
@@ -38,7 +41,7 @@ export class GoogleCalendarService {
   }
 
   async listCalendars(): Promise<CalendarInfo[]> {
-    const res = await this.calendar.calendarList.list({ minAccessRole: 'reader' });
+    const res = await this.deps.retry(() => this.calendar.calendarList.list({ minAccessRole: 'reader' }));
     return (res.data.items ?? [])
       .map((item) => ({
         id: item.id ?? '',
@@ -50,13 +53,13 @@ export class GoogleCalendarService {
   }
 
   async getEvents(start: Date, end: Date): Promise<CalendarEvent[]> {
-    const res = await this.calendar.events.list({
+    const res = await this.deps.retry(() => this.calendar.events.list({
       calendarId: this.calendarId,
       timeMin: start.toISOString(),
       timeMax: end.toISOString(),
       singleEvents: true,
       orderBy: 'startTime',
-    });
+    }));
 
     return (res.data.items ?? [])
       .map(this.deps.normalizeEvent)
@@ -64,13 +67,13 @@ export class GoogleCalendarService {
   }
 
   async getFreeBusy(emails: string[], start: Date, end: Date): Promise<FreeBusyResult> {
-    const res = await this.calendar.freebusy.query({
+    const res = await this.deps.retry(() => this.calendar.freebusy.query({
       requestBody: {
         timeMin: start.toISOString(),
         timeMax: end.toISOString(),
         items: emails.map((id) => ({ id })),
       },
-    });
+    }));
     const calendars = res.data.calendars ?? {};
     return Object.fromEntries(
       emails.map((email) => {
@@ -110,11 +113,11 @@ export class GoogleCalendarService {
       };
     }
 
-    const res = await this.calendar.events.insert({
+    const res = await this.deps.retry(() => this.calendar.events.insert({
       calendarId: this.calendarId,
       requestBody,
       ...(requestBody.conferenceData ? { conferenceDataVersion: 1 } : {}),
-    });
+    }));
     const event = this.deps.normalizeEvent(res.data);
     if (!event) throw new Error('createEvent: Google returned an event with missing start/end');
     return event;
@@ -141,7 +144,7 @@ export class GoogleCalendarService {
       ? this.deps.stripRecurrenceSuffix(eventId)
       : eventId;
 
-    const res = await this.calendar.events.patch({ calendarId: this.calendarId, eventId: targetId, requestBody });
+    const res = await this.deps.retry(() => this.calendar.events.patch({ calendarId: this.calendarId, eventId: targetId, requestBody }));
     const event = this.deps.normalizeEvent(res.data);
     if (!event) throw new Error('updateEvent: Google returned an event with missing start/end');
     return event;
@@ -149,7 +152,7 @@ export class GoogleCalendarService {
 
   async deleteEvent(eventId: string, scope?: RecurrenceScope): Promise<void> {
     if (scope === 'all') {
-      await this.calendar.events.delete({ calendarId: this.calendarId, eventId: this.deps.stripRecurrenceSuffix(eventId) });
+      await this.deps.retry(() => this.calendar.events.delete({ calendarId: this.calendarId, eventId: this.deps.stripRecurrenceSuffix(eventId) }));
       return;
     }
 
@@ -158,15 +161,15 @@ export class GoogleCalendarService {
         throw new Error(`deleteEvent: this_and_following requires an instance event ID (got '${eventId}')`);
       }
       const masterId = this.deps.stripRecurrenceSuffix(eventId);
-      const masterRes = await this.calendar.events.get({ calendarId: this.calendarId, eventId: masterId });
+      const masterRes = await this.deps.retry(() => this.calendar.events.get({ calendarId: this.calendarId, eventId: masterId }));
       const recurrence = (masterRes.data.recurrence ?? []).map((rule) =>
         rule.startsWith('RRULE:') ? this.deps.truncateRruleUntil(rule, eventId) : rule,
       );
-      await this.calendar.events.patch({ calendarId: this.calendarId, eventId: masterId, requestBody: { recurrence } });
+      await this.deps.retry(() => this.calendar.events.patch({ calendarId: this.calendarId, eventId: masterId, requestBody: { recurrence } }));
       return;
     }
 
     // 'this' or no scope: delete the instance (or single event) as-is
-    await this.calendar.events.delete({ calendarId: this.calendarId, eventId });
+    await this.deps.retry(() => this.calendar.events.delete({ calendarId: this.calendarId, eventId }));
   }
 }
