@@ -258,6 +258,47 @@ describe('runAgentLoop', () => {
     expect(events.filter((e) => e.event === SSEEventType.EventProposal)).toHaveLength(0);
   });
 
+  // d2. MaxTokens + tool calls — dispatch them, don't discard (regression: narration loop on 30+ batch)
+  it('dispatches tool calls when stopReason is MaxTokens (not just ToolUse)', async () => {
+    const toolCalls = Array.from({ length: 5 }, (_, i) => ({
+      id: `tc-${i}`,
+      name: 'get_events',
+      input: { start: 'a', end: 'b' },
+    }));
+    const provider = mockProvider([
+      // Model was cut off mid-response but still returned 5 complete tool_use blocks
+      { stopReason: StopReason.MaxTokens, text: 'Creating now...', toolCalls },
+      { stopReason: StopReason.EndTurn, text: 'done', toolCalls: [] },
+    ]);
+    const dispatchTool = vi.fn().mockResolvedValue('ok');
+    const deps = makeDeps({ provider, dispatchTool });
+    const events: SSEEvent[] = [];
+
+    await runAgentLoop([{ role: 'user', content: 'Schedule 30 events' }], deps, collectEvents(events));
+
+    expect(dispatchTool).toHaveBeenCalledTimes(5);
+    // Loop continued to next turn — either to emit more tool calls or end_turn
+    expect(provider.stream).toHaveBeenCalledTimes(2);
+  });
+
+  it('still nudges "Please continue" when MaxTokens happens with NO tool calls (pure text cutoff)', async () => {
+    const provider = mockProvider([
+      { stopReason: StopReason.MaxTokens, text: 'Partial text...', toolCalls: [] },
+      { stopReason: StopReason.EndTurn, text: '...continued.', toolCalls: [] },
+    ]);
+    const dispatchTool = vi.fn();
+    const deps = makeDeps({ provider, dispatchTool });
+    const events: SSEEvent[] = [];
+
+    await runAgentLoop([{ role: 'user', content: 'Tell me a long story' }], deps, collectEvents(events));
+
+    expect(dispatchTool).not.toHaveBeenCalled();
+    expect(provider.stream).toHaveBeenCalledTimes(2);
+    // 2nd call should have received a "Please continue." user nudge
+    const secondCallMessages = (provider.stream as ReturnType<typeof vi.fn>).mock.calls[1][1] as ChatMessage[];
+    expect(secondCallMessages[secondCallMessages.length - 1]).toMatchObject({ role: 'user', content: 'Please continue.' });
+  });
+
   // e. Tool dispatch error
   it('emits error tool_result and continues loop when dispatchTool throws', async () => {
     const toolCall = { id: 'tc-err', name: 'get_events', input: {} };

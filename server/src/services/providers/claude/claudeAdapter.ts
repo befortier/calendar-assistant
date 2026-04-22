@@ -14,9 +14,12 @@ export class ClaudeAdapter implements LLMProvider {
     tools: ToolDefinition[],
     onDelta: (text: string) => void,
   ): Promise<StreamResult> {
+    const started = Date.now();
+    const ts = new Date().toISOString();
+    console.log(`[${ts}] [claude] start messages=${messages.length}`);
     const stream = this.client.messages.stream({
       model: this.model,
-      max_tokens: 4096,
+      max_tokens: 8192,
       system,
       tools: tools.map(toAnthropicTool),
       messages: messages.map(toAnthropicMessage),
@@ -29,8 +32,11 @@ export class ClaudeAdapter implements LLMProvider {
     }
 
     const finalMsg = await stream.finalMessage();
+    const dur = Date.now() - started;
     const toolBlocks = finalMsg.content.filter((b) => b.type === 'tool_use');
-    console.log(`[claude] stop=${finalMsg.stop_reason} text=${finalMsg.content.filter((b) => b.type === 'text').length} tools=${toolBlocks.map((b) => (b as { name: string }).name).join(',') || 'none'}`);
+    const inTok = finalMsg.usage?.input_tokens ?? 0;
+    const outTok = finalMsg.usage?.output_tokens ?? 0;
+    console.log(`[${new Date().toISOString()}] [claude] done dur=${dur}ms stop=${finalMsg.stop_reason} text=${finalMsg.content.filter((b) => b.type === 'text').length} tools=${toolBlocks.map((b) => (b as { name: string }).name).join(',') || 'none'} in=${inTok} out=${outTok}`);
     return normalizeResponse(finalMsg);
   }
 }
