@@ -23,6 +23,7 @@ const RATE_LIMIT_REASONS = new Set(['rateLimitExceeded', 'userRateLimitExceeded'
  */
 export async function withRetry<T>(fn: () => Promise<T>, opts: RetryOptions = {}): Promise<T> {
   const maxAttempts = opts.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+  if (maxAttempts < 1) throw new Error(`withRetry: maxAttempts must be >= 1, got ${maxAttempts}`);
   const baseDelayMs = opts.baseDelayMs ?? DEFAULT_BASE_DELAY_MS;
   const maxDelayMs = opts.maxDelayMs ?? DEFAULT_MAX_DELAY_MS;
   const jitter = opts.jitter ?? defaultJitter;

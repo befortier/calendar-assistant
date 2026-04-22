@@ -43,6 +43,12 @@ function testOpts(overrides?: Partial<RetryOptions>): RetryOptions & Required<Pi
 // ---------------------------------------------------------------------------
 
 describe('withRetry', () => {
+  it.each([0, -1, -3])('throws when maxAttempts < 1 (got %d)', async (maxAttempts) => {
+    await expect(
+      withRetry(async () => 'ok', { ...testOpts(), maxAttempts }),
+    ).rejects.toThrow(/maxAttempts must be >= 1/);
+  });
+
   it('returns the value when fn succeeds on first attempt (no retry)', async () => {
     const fn = vi.fn().mockResolvedValue('ok');
 

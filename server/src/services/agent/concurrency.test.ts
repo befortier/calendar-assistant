@@ -10,6 +10,12 @@ function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void; reject: 
 }
 
 describe('mapWithConcurrency', () => {
+  it.each([0, -1, -5])('throws when limit < 1 (got %d)', async (limit) => {
+    await expect(mapWithConcurrency([1, 2, 3], limit, async (n) => n)).rejects.toThrow(
+      /limit must be >= 1/,
+    );
+  });
+
   it('returns [] for empty input', async () => {
     const fn = vi.fn();
     expect(await mapWithConcurrency([], 3, fn)).toEqual([]);
