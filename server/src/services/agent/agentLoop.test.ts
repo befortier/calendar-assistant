@@ -83,6 +83,35 @@ describe('runAgentLoop', () => {
     expect(events[events.length - 1]).toEqual({ event: SSEEventType.Done, data: {} });
   });
 
+  // b0. Concurrency cap — bounded to prevent thundering-herd on Google Calendar
+  it('caps concurrent in-flight tool calls (regression: rate-limited 31-event batches)', async () => {
+    const toolCalls = Array.from({ length: 10 }, (_, i) => ({
+      id: `tc-${i}`,
+      name: 'get_events',
+      input: { start: 'a', end: 'b' },
+    }));
+    const provider = mockProvider([
+      { stopReason: StopReason.ToolUse, text: '', toolCalls },
+      { stopReason: StopReason.EndTurn, text: 'done', toolCalls: [] },
+    ]);
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const dispatchTool = vi.fn(async () => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      return 'ok';
+    });
+    const deps = makeDeps({ provider, dispatchTool });
+    const events: SSEEvent[] = [];
+
+    await runAgentLoop([{ role: 'user', content: 'x' }], deps, collectEvents(events));
+
+    expect(dispatchTool).toHaveBeenCalledTimes(10);
+    expect(maxInFlight).toBeLessThanOrEqual(3);
+  });
+
   // b. Tool dispatch + loop
   it('dispatches tools and loops back to provider', async () => {
     const toolCall = { id: 'tc-1', name: 'get_events', input: { start: 'a', end: 'b' } };

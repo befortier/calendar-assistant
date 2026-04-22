@@ -2,8 +2,12 @@ import type { LLMProvider, ChatMessage, ToolDefinition, ToolCall } from './types
 import { StopReason } from './types';
 import type { SSEEmitter } from '../sse';
 import { SSEEventType } from '../sse';
+import { mapWithConcurrency } from './concurrency';
 
 const MAX_ITERATIONS = 10;
+// Cap parallel tool dispatches — prevents batch accepts (e.g. 31 create_event calls)
+// from blowing through Google Calendar's per-user write quota.
+const MAX_CONCURRENT_TOOLS = 3;
 
 export interface AgentLoopDeps {
   provider: LLMProvider;
@@ -84,21 +88,19 @@ async function dispatchAll(
   dispatch: (name: string, input: Record<string, unknown>) => Promise<string>,
   emit: SSEEmitter,
 ): Promise<ChatMessage[]> {
-  return Promise.all(
-    toolCalls.map(async (tc): Promise<ChatMessage> => {
-      emit({ event: SSEEventType.ToolCall, data: { tool: tc.name } });
-      try {
-        const result = await dispatch(tc.name, tc.input);
-        emit({ event: SSEEventType.ToolResult, data: { tool: tc.name, summary: 'Completed' } });
-        return { role: 'tool_result', toolCallId: tc.id, content: result };
-      } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        emit({
-          event: SSEEventType.ToolResult,
-          data: { tool: tc.name, summary: errMsg, error: true },
-        });
-        return { role: 'tool_result', toolCallId: tc.id, content: `Error: ${errMsg}`, isError: true };
-      }
-    }),
-  );
+  return mapWithConcurrency(toolCalls, MAX_CONCURRENT_TOOLS, async (tc): Promise<ChatMessage> => {
+    emit({ event: SSEEventType.ToolCall, data: { tool: tc.name } });
+    try {
+      const result = await dispatch(tc.name, tc.input);
+      emit({ event: SSEEventType.ToolResult, data: { tool: tc.name, summary: 'Completed' } });
+      return { role: 'tool_result', toolCallId: tc.id, content: result };
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      emit({
+        event: SSEEventType.ToolResult,
+        data: { tool: tc.name, summary: errMsg, error: true },
+      });
+      return { role: 'tool_result', toolCallId: tc.id, content: `Error: ${errMsg}`, isError: true };
+    }
+  });
 }
