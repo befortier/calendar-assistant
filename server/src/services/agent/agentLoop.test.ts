@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { runAgentLoop, type AgentLoopDeps } from './agentLoop';
+import { runAgentLoop, MAX_CONCURRENT_TOOLS, type AgentLoopDeps } from './agentLoop';
 import type { LLMProvider, StreamResult, ChatMessage, ToolDefinition } from './types';
 import { StopReason } from './types';
 import { SSEEventType, type SSEEvent, type SSEEmitter } from '../sse';
@@ -84,8 +84,9 @@ describe('runAgentLoop', () => {
   });
 
   // b0. Concurrency cap — bounded to prevent thundering-herd on Google Calendar
-  it('caps concurrent in-flight tool calls (regression: rate-limited 31-event batches)', async () => {
-    const toolCalls = Array.from({ length: 10 }, (_, i) => ({
+  it('caps concurrent in-flight tool calls at MAX_CONCURRENT_TOOLS', async () => {
+    const N = MAX_CONCURRENT_TOOLS * 3;
+    const toolCalls = Array.from({ length: N }, (_, i) => ({
       id: `tc-${i}`,
       name: 'get_events',
       input: { start: 'a', end: 'b' },
@@ -108,8 +109,10 @@ describe('runAgentLoop', () => {
 
     await runAgentLoop([{ role: 'user', content: 'x' }], deps, collectEvents(events));
 
-    expect(dispatchTool).toHaveBeenCalledTimes(10);
-    expect(maxInFlight).toBeLessThanOrEqual(3);
+    expect(dispatchTool).toHaveBeenCalledTimes(N);
+    expect(maxInFlight).toBeLessThanOrEqual(MAX_CONCURRENT_TOOLS);
+    // Sanity check: we should have actually filled the pool, not under-parallelized
+    expect(maxInFlight).toBe(MAX_CONCURRENT_TOOLS);
   });
 
   // b. Tool dispatch + loop

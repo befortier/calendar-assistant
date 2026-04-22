@@ -5,9 +5,10 @@ import { SSEEventType } from '../sse';
 import { mapWithConcurrency } from './concurrency';
 
 const MAX_ITERATIONS = 10;
-// Cap parallel tool dispatches — prevents batch accepts (e.g. 31 create_event calls)
-// from blowing through Google Calendar's per-user write quota.
-const MAX_CONCURRENT_TOOLS = 3;
+// Cap parallel tool dispatches — Google Calendar's per-user write quota is
+// ~10/sec; 5 workers at ~500ms/op sits right at the line and leaves retry
+// budget for real transient failures instead of predictable quota hits.
+export const MAX_CONCURRENT_TOOLS = 5;
 
 export interface AgentLoopDeps {
   provider: LLMProvider;
